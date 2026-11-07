@@ -1,3 +1,4 @@
+import {normalizeWhatsapp} from '../../src/lib/phone.mjs';
 import {randomBytes,scrypt,timingSafeEqual,createHash} from 'node:crypto';
 
 type Row=Record<string,unknown>;
@@ -56,8 +57,8 @@ export async function handleAccount({request,env}:Context){
    await rate(db,`auth-email:${email}`,10);
    const token=randomBytes(32).toString('hex');
    if(path==='/register'){
-    const name=text(data.name,2,80),whatsapp=text(data.whatsapp,12,13);
-    if(!/^55\d{10,11}$/.test(whatsapp)||!neighborhoods.includes(String(data.neighborhood))||data.acceptContact!==true)throw new Failure('Informe o bairro e o WhatsApp com DDI 55 e autorize sua divulgação nos anúncios aprovados.');
+    const name=text(data.name,2,80),whatsapp=normalizeWhatsapp(data.whatsapp);
+    if(!whatsapp||!neighborhoods.includes(String(data.neighborhood))||data.acceptContact!==true)throw new Failure('Informe o bairro, um WhatsApp brasileiro com DDD e autorize sua divulgação nos anúncios aprovados.');
     const encoded=await passwordHash(password),id=crypto.randomUUID();
     try{await db.batch([db.prepare('INSERT INTO marketplace_sellers(id,display_name,whatsapp) VALUES (?,?,?)').bind(id,name,whatsapp),db.prepare('INSERT INTO marketplace_accounts(id,email,password_hash,neighborhood) VALUES (?,?,?,?)').bind(id,email,encoded,data.neighborhood),sessionStatement(db,id,token)])}
     catch(error){if(await db.prepare('SELECT id FROM marketplace_accounts WHERE email=?').bind(email).first())throw new Failure('Não foi possível cadastrar com esse e-mail. Tente entrar na sua conta.',409);throw error}

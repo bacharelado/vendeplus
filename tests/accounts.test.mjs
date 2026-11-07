@@ -71,3 +71,8 @@ test('cadastro e login aceitam senha de oito caracteres, preservando hash e sess
  const login=await h.request('login','POST',data);assert.equal(login.status,200);assert(login.cookie);
  assert.equal((await h.request('login','POST',{...data,password:'Teste#27'})).status,401);
 });
+
+test('API normaliza telefone formatado e rejeita texto inválido',async()=>{
+ const h=harness();assert.equal((await h.request('register','POST',{...registration(),whatsapp:'telefone inválido'})).status,400);
+ const result=await h.request('register','POST',{...registration(),whatsapp:'+55 (92) 00000-0000'});assert.equal(result.status,201);assert.equal(result.body.account.whatsapp,'5592000000000');assert.equal(h.sqlite.prepare('SELECT whatsapp FROM marketplace_sellers').get().whatsapp,'5592000000000');
+});

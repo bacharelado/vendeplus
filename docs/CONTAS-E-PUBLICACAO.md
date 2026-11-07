@@ -6,6 +6,8 @@ Visitantes exploram o catálogo sem cadastro. Moradores e comerciantes de Porang
 
 Os rascunhos continuam locais e podem ser enviados pelo botão Enviar online. Antes do envio, o vendedor confere os dados e escolhe o bairro da oferta. Um envio confirmado fica no D1, aparece na área do proprietário e permanece disponível ao entrar em outro aparelho. Somente cadastro aprovado e anúncio publicado aparecem na consulta pública. O envio não equivale à publicação.
 
+O WhatsApp aceita números com DDD, com ou sem +55 e com espaços, parênteses ou hífen. Interface e servidor usam a mesma normalização, salvando somente os dígitos no formato internacional brasileiro. Essa normalização não confirma que o telefone existe ou pertence ao usuário.
+
 A autenticação usa senha de 8 a 128 caracteres, scrypt com salt individual, sessão aleatória de 256 bits e cookie `__Host-vendeplus`, HttpOnly, Secure, SameSite=Lax, válido por sete dias. O banco guarda somente o hash da sessão. Logout remove a sessão no servidor; sessões expiradas ou de vendedores suspensos não autorizam operações. Não há credencial no armazenamento local.
 
 As escritas exigem origem idêntica e JSON, têm limite de corpo e usam parâmetros SQL. Os limites de tentativas de acesso e de envio ficam no D1. As chaves de limitação não armazenam IP/e-mail em texto. Cada consulta e alteração de vendedor confere o proprietário no servidor; a API ignora privilégios e status enviados no cadastro. A repetição de uma solicitação de envio com o mesmo identificador não cria outro anúncio.
