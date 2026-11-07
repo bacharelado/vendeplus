@@ -154,3 +154,19 @@ test('clipboard indisponível oferece cópia manual do exemplo inicial',async({p
   await expect(page.getByRole('dialog')).toContainText('Copie este link');
   await expect(page.getByRole('textbox',{name:'Link do anúncio'})).toHaveValue(/#anuncio-3$/);
 });
+
+
+test('aprovação administrativa continua válida após pausar e reativar',async({page})=>{
+  await page.goto('/#inicio');
+  await publish(page,{description:'Produto fictício com pagamento antecipado para revisão.'});
+  await page.getByRole('link',{name:'Ir ao painel'}).click();
+  await page.getByRole('link',{name:'Administrador',exact:true}).click();
+  const review=page.locator('.listing-line').filter({hasText:'Produto fictício de auditoria'});
+  await review.getByRole('button',{name:'Aprovar (simulação)',exact:true}).click();
+  await page.locator('.demo-banner').getByRole('link',{name:'Vendedor',exact:true}).click();
+  const own=page.locator('.listing-line').filter({hasText:'Produto fictício de auditoria'});
+  await own.getByRole('button',{name:'Pausar',exact:true}).click();
+  await expect(own).toContainText('PAUSADO');
+  await own.getByRole('button',{name:'Reativar',exact:true}).click();
+  await expect(own).toContainText('PUBLICADO');
+});

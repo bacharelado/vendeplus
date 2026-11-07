@@ -145,3 +145,5 @@
 .button.teal{background:linear-gradient(180deg,#137761,#105b4c)}
 .button.primary:hover,.button.teal:hover{background:#104f3e}
 @media(max-width:699px){.footer{padding-bottom:calc(90px + env(safe-area-inset-bottom))}.modal{max-width:calc(100vw - 28px);padding:18px}}
+
+@media(max-width:699px){.nav{flex-wrap:wrap;overflow:visible;gap:6px}.nav a{padding:8px 10px;font-size:.81rem;min-height:44px;display:flex;align-items:center}}
