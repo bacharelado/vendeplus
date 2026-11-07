@@ -99,10 +99,15 @@ test('layout não ultrapassa a tela e atalhos móveis funcionam', async ({page},
   }
 });
 
-test('se fotos externas falharem, o anúncio mantém uma alternativa visível', async ({page}) => {
+test('se fotos externas falharem, o anúncio mantém uma alternativa visível', async ({page}, testInfo) => {
   await page.route('**/images.unsplash.com/**', route => route.abort());
   await page.goto('/#inicio');
-  await expect(page.locator('.hero-visual-fallback')).toBeVisible();
+  if (testInfo.project.name.startsWith('mobile')) {
+    await expect(page.locator('.hero-visual')).toBeHidden();
+    await expect(page.locator('.category-grid')).toBeInViewport();
+  } else {
+    await expect(page.locator('.hero-visual-fallback')).toBeVisible();
+  }
   const imageCard = page.locator('.listing-card').first();
   await expect(imageCard.locator('.photo-fallback')).toBeVisible();
   await expect(imageCard.locator('.listing-image-label')).toHaveText(/Foto ilustrativa|Ilustração da categoria/);

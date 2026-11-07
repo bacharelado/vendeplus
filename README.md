@@ -6,26 +6,32 @@ Este pacote é o **código-fonte de uma demonstração local em React + Vite + T
 
 ## Abrir no Windows 10
 
-1. Instale **Node.js 22.12+** (ou versão 20.19+) e confirme no Prompt de Comando:
+1. Instale **Node.js 22.12+** e Git; confirme no Prompt de Comando:
    ```bat
    node -v
    npm -v
    ```
-2. Extraia este ZIP para uma pasta, por exemplo `C:\Users\helio\Desktop\vendeplus-fase1`.
+2. Obtenha a branch de desenvolvimento pelo GitHub:
+   ```bat
+   git clone --branch feat/ux-compra-venda-v2 https://github.com/bacharelado/vendeplus.git
+   cd vendeplus
+   ```
 3. No terminal aberto **dentro da pasta do projeto**, execute:
    ```bat
-   npm install
+   npm ci
    npm run dev
    ```
 4. Abra **http://localhost:5173**.
 
-Alternativa: dê dois cliques em `scripts\iniciar-windows.bat` após extrair a pasta. O `npm install` exige conexão com a internet, mas os pacotes são gratuitos.
+Alternativa: dê dois cliques em `scripts\iniciar-windows.bat` na pasta clonada. O `npm ci` exige conexão com a internet, mas os pacotes são gratuitos.
 
 ### Outros comandos
 ```bat
 npm run test
 npm run typecheck
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
 `npm run build` gera uma versão estática em `dist/`; isso **não autoriza** publicar para clientes reais.
@@ -53,8 +59,11 @@ scripts/iniciar-windows.bat     atalho opcional
 - Na Fase 2, operações sensíveis passarão por funções de servidor e RLS, com revisão de LGPD e testes.
 
 ## Verificação nesta entrega
-- `npm run test` executa testes locais de preços e classificação por Node.
-- Esta entrega foi gerada em ambiente isolado sem acesso ao registro do npm. Portanto a instalação das dependências, build Vite e a interface React devem ser validadas no seu PC após o `npm install`.
+- `npm test`: preços, classificação e filtros.
+- `npm run build`: TypeScript e compilação Vite.
+- `npm run test:e2e`: fluxos em Chromium desktop e emulação de celular; exige `npx playwright install chromium`.
+- GitHub Actions instala dependências com `npm ci` e mantém os relatórios e capturas por 7 dias.
+- A [auditoria de 07/11/2026](docs/AUDITORIA-2026-11-07.md) registra evidências, correções, limites e pendências. Build aprovado não substitui inspeção visual nem garante segurança de produção.
 
 ## Decisões vigentes
 D1: confirmação manual do WhatsApp de vendedores; D2: regulamento v0.1 como base, revisão jurídica antes do público; D3: vínculo declarado com Poranga II; D4: orçamento R$ 0, nenhuma assinatura; D5: VENDE+ nome de trabalho, investigação da marca pendente.
@@ -65,3 +74,4 @@ D1: confirmação manual do WhatsApp de vendedores; D2: regulamento v0.1 como ba
 3. Planejar e implementar autenticação real, autorização e banco Supabase (plano gratuito) em ambiente isolado.
 4. Criar upload seguro de imagens, denúncias com evidências, auditoria e moderação verificável no servidor.
 5. Validar com moradores/comerciantes; revisar questões legais e custos antes de qualquer lançamento real.
+
