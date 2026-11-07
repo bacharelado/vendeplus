@@ -1,6 +1,6 @@
 # VENDE+
 
-Marketplace comunitário do Poranga II, Itacoatiara-AM. Produto APOCALYPTIC.
+Marketplace comunitário de Poranga e Jacarezinho, Itacoatiara-AM. Produto APOCALYPTIC.
 
 ## Desenvolvimento
 
@@ -18,7 +18,8 @@ npm run dev
 - Vitrine responsiva, categorias, pesquisa, filtros, ordenação, temas e navegação por teclado.
 - Rascunhos salvos no navegador, com edição, exclusão confirmada, persistência e tratamento de erro de armazenamento.
 - Catálogo servido por `/api/listings`, sem anúncios pré-carregados no cliente.
-- API somente de leitura, preparada para Cloudflare Pages Functions e banco D1.
+- Cadastro e login reais com sessão protegida e envio de anúncios ao D1 para revisão.
+- Área do vendedor com isolamento por proprietário e revisão administrativa autenticada.
 - Esquema SQL com restrições e consulta que exige anúncio publicado e vendedor aprovado.
 - Detalhe e compartilhamento dos anúncios retornados pela API. Link do WhatsApp somente quando o servidor fornece um contato válido.
 
@@ -26,7 +27,7 @@ npm run dev
 
 O banco D1 `vendeplus-preview` está configurado com o binding `MARKETPLACE_DB` somente na prévia. As tabelas foram aplicadas e a API foi validada em 07/11/2026 na [execução 42416744909](https://github.com/bacharelado/vendeplus/actions/runs/42416744909), retornando um catálogo vazio. A configuração e o deployment de produção foram preservados. Sem o banco ou em caso de erro, a API retorna 503; a interface não inventa ofertas.
 
-A publicação online, contas de vendedores, uploads, autenticação e administração protegida ainda precisam de implementação. Os rascunhos são privados do navegador e não são enviados a um servidor.
+Cadastro, login e envio online foram implementados e validados no D1 da prévia. Anúncios novos ficam em análise até a aprovação do vendedor e do anúncio. Os rascunhos locais só são enviados quando o usuário escolhe Enviar online e confirma o formulário. A primeira conta administradora ainda precisa ser indicada pelo CEO. Recuperação de senha, verificação automática de contatos, uploads e edição online continuam pendentes. Veja [Contas e publicação](docs/CONTAS-E-PUBLICACAO.md).
 
 A branch de desenvolvimento atualiza a prévia do Cloudflare Pages. A versão principal exige aprovação expressa do CEO antes de merge ou publicação.
 
@@ -38,7 +39,7 @@ O workflow executa somente na branch `feat/ux-compra-venda-v2`. Ele identifica o
 
 A execução inicial é disparada pelo push dos arquivos da automação. Se o segredo ainda não existir, o job encerra antes de qualquer chamada à Cloudflare. Após cadastrar o segredo, reexecute esse job no GitHub Actions. Não é necessário mesclar a branch para executar a configuração.
 
-O workflow não insere produtos ou vendedores e não habilita publicação sem autenticação. Um catálogo vazio após a conexão é o resultado esperado enquanto não houver anúncios aprovados no banco.
+O provisionamento não semeia produtos ou vendedores. O teste de integração cria contas temporárias privadas e as remove ao terminar. A publicação exige autenticação e autorização. Um catálogo vazio após a conexão é o resultado esperado enquanto não houver anúncios aprovados no banco.
 
 ## Verificações
 

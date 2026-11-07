@@ -77,7 +77,7 @@ export async function handleAccount({request,env}:Context){
    return reply({listings:result.results});
   }
   if(path==='/listings'&&request.method==='POST'){
-   const values=listingData(data),requestId=text(data.requestId,36,36);if(!/^[a-f0-9-]{36}$/i.test(requestId))throw new Failure('Identificador da solicitação inválido.');
+   const values=listingData(data),requestId=text(data.requestId,32,36);if(!/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(requestId))throw new Failure('Identificador da solicitação inválido.');
    const previous=await db.prepare('SELECT listing_id AS id FROM marketplace_listing_details WHERE seller_id=? AND request_id=?').bind(account.id,requestId).first();if(previous)return reply({id:previous.id,status:'pending'});
    await rate(db,`listing:${account.id}`,10);
    const count=await db.prepare("SELECT count(*) AS total FROM marketplace_listings WHERE seller_id=? AND status NOT IN ('removed','sold')").bind(account.id).first();if(Number(count?.total)>=50)throw new Failure('Você atingiu o limite de 50 anúncios ativos.',409);

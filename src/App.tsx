@@ -91,7 +91,7 @@ export function App(){
     return ()=>{disposed=true;controller.abort();clearTimeout(timer)};
   },[refresh]);
   useEffect(()=>{const update=(event:StorageEvent)=>{if(event.key==='vendeplus:drafts:v1'||event.key===null){try{setDrafts(readDrafts(localStorage))}catch{}}};window.addEventListener('storage',update);return ()=>window.removeEventListener('storage',update)},[]);
-  useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda no Poranga e Jacarezinho',catalogo:'Encontre no bairro',publicar:'Prepare seu anúncio',painel:'Meus rascunhos',anuncio:'Detalhes do anúncio','como-funciona':'Como funciona'};document.title=`${titles[route.name]||'VENDE+'} | VENDE+`},[route.name]);
+  useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda no Poranga e Jacarezinho',catalogo:'Encontre no bairro',publicar:'Prepare seu anúncio',painel:'Meus rascunhos',conta:'Minha conta',admin:'Revisão de anúncios',anuncio:'Detalhes do anúncio','como-funciona':'Como funciona'};document.title=`${titles[route.name]||'VENDE+'} | VENDE+`},[route.name]);
   const changeTheme=()=>{setDark(current=>{try{localStorage.setItem('vendeplus:theme',current?'light':'dark')}catch{}return !current})};
   const reset=()=>{setQuery('');setCategory('Todas');setCondition('Todas');setOrder('recentes')};
   const browse=(nextCategory='Todas')=>{reset();setCategory(nextCategory);location.hash='catalogo'};
@@ -109,6 +109,7 @@ export function App(){
     let copied=false;try{await navigator.clipboard.writeText(link);copied=true}catch{}
     setDialog({title:copied?'Link copiado':'Compartilhar anúncio',content:<><p>{copied?'Envie o endereço para quem pode se interessar.':'Selecione o endereço abaixo para copiar e enviar.'}</p><label className="share-label">Link do anúncio<input readOnly value={link} onFocus={e=>e.currentTarget.select()}/></label></>});
   };
+  useEffect(()=>{if(['inicio','catalogo','anuncio'].includes(route.name))setRefresh(value=>value+1)},[route.name,route.id]);
   const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando ofertas no bairro…</div>:catalog.kind==='unavailable'?<Empty title="Ofertas em preparação"><p>O catálogo ainda não está disponível. Volte em breve ou comece a preparar seu anúncio.</p><div className="empty-actions"><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button><a className="button primary" href="#publicar">Preparar anúncio<Icon name="arrow"/></a></div></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:<Empty title={catalog.listings.length?'Nenhuma oferta encontrada':'O bairro tem muito a oferecer'} icon="search"><p>{catalog.listings.length?'Experimente outra palavra ou ajuste os filtros.':'As primeiras ofertas aparecerão aqui quando estiverem disponíveis.'}</p>{catalog.listings.length?<button className="button outline" onClick={reset}>Limpar filtros</button>:<a href="#publicar" className="button primary">Preparar meu anúncio<Icon name="plus"/></a>}</Empty>;
   return <div className={dark?'app dark':'app'}>
     <a href="#conteudo" className="skip-link" onClick={e=>{e.preventDefault();mainRef.current?.focus()}}>Pular para o conteúdo</a>

@@ -20,7 +20,7 @@ Em 07/11/2026, a automação [42416744909](https://github.com/bacharelado/vendep
 
 A conexão usou um banco exclusivo da prévia, sem reutilizar dados de produção, e a migração `migrations/0001_marketplace.sql`. Os rascunhos locais não foram enviados ao banco e nenhum vendedor ou anúncio fictício foi inserido. A conexão de produção continua dependendo de aprovação expressa e não foi realizada.
 
-A criação de conta, publicação online, moderação autenticada, imagens enviadas por vendedores e denúncias persistidas não estão implementadas. Não há botão público que finja concluir essas operações. A rota antiga de administração apenas informa que não está disponível na área pública.
+Cadastro, login, sessões, envio online e revisão autenticada foram implementados na etapa seguinte, descrita em `docs/CONTAS-E-PUBLICACAO.md`. Imagens enviadas por vendedores, recuperação de senha, verificação automática de contatos e denúncias persistidas continuam pendentes. Nenhuma conta recebe administração automaticamente.
 
 ## Verificação
 

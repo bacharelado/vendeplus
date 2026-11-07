@@ -58,3 +58,7 @@ test('validação rejeita preço, bairro e consentimento inválidos',async()=>{
 test('limite de tentativas persiste no banco sem guardar IP e e-mail em texto',async()=>{
  const h=harness();for(let i=0;i<10;i++)await h.request('login','POST',registration());assert.equal((await h.request('login','POST',registration())).status,429);assert(h.sqlite.prepare('SELECT key FROM marketplace_rate_limits').all().every(row=>/^[a-f0-9]{64}$/.test(row.key)));
 });
+
+test('identificador aleatório de navegador sem randomUUID também funciona',async()=>{
+ const h=harness(),owner=await h.request('register','POST',registration());assert.equal((await h.request('listings','POST',offer('a'.repeat(32)),owner.cookie)).status,201);assert.equal((await h.request('listings','POST',offer('-'.repeat(36)),owner.cookie)).status,400);
+});

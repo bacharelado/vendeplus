@@ -6,6 +6,8 @@ on:
       - .github/workflows/database-preview.yml
       - scripts/connect-preview-database.mjs
       - 'migrations/*.sql'
+      - 'functions/**'
+      - scripts/test-preview-accounts.mjs
   workflow_dispatch:
 permissions:
   contents: read

@@ -171,3 +171,9 @@ test('conta envia anúncio, mostra análise e encerra sessão',async({page})=>{
  await page.getByRole('button',{name:'Enviar novo anúncio'}).click();await page.getByLabel('Título do anúncio').fill('Item de teste automatizado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Descrição',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Atendimento ou entrega').fill('Retirada a combinar');await page.getByRole('button',{name:'Enviar para revisão'}).click();await expect(page.locator('.account-offer')).toContainText('Em análise');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
  await page.getByRole('button',{name:'Sair da conta'}).click();await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
 });
+
+
+test('retorno ao catálogo atualiza ofertas retiradas no servidor',async({page})=>{
+ await catalog(page);let available=true;await page.route('**/api/listings',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:available?items:[]})}));
+ await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(2);await page.goto('/#conta');await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();available=false;await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);await expect(page.getByRole('heading',{name:'O bairro tem muito a oferecer'})).toBeVisible();
+});
