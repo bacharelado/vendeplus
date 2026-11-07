@@ -164,3 +164,7 @@
   .category span{font-size:1.5rem;margin-bottom:3px}
   .nav a{padding:8px 7px}
 }
+/* Texto pequeno mantém contraste também sobre o fundo claro do conteúdo. */
+.app{--muted:#566577}
+.eyebrow,.back,.section-heading a,.filter-feedback button{color:#146b56}
+.hero-trust{color:#465f55}

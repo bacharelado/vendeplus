@@ -16,7 +16,7 @@ A demonstração recebeu correções de acessibilidade, navegação, validação
 
 | Prioridade | Evidência / reprodução antes da correção | Correção |
 | --- | --- | --- |
-| Alta | Em `#anuncio-1`, alternar para tema escuro: o texto claro do aviso de segurança permanece sobre fundo quase branco. Ver captura antes. | Cores próprias para avisos, etiquetas, indicadores e seleção mobile no tema escuro. Teste de contraste mínimo 4,5:1 para aviso e etiqueta. |
+| Alta | Em `#anuncio-1`, alternar para tema escuro: o texto claro do aviso de segurança permanece sobre fundo quase branco. Ver captura antes. | Cores próprias para avisos, etiquetas, indicadores e seleção mobile no tema escuro; links e texto secundário também escurecidos no tema claro. Testes de contraste mínimo 4,5:1 nos textos selecionados de ambos os temas. |
 | Alta | `Modal` mantinha foco no botão de abertura; não confinava Tab nem tornava o fundo inerte. Na CSS, `.overlay` tinha `z-index:10`, abaixo da barra mobile (`20`). | Elemento `dialog` nativo na camada superior, confinamento de Tab/Shift+Tab, foco inicial, Escape, devolução de foco e bloqueio de rolagem do fundo. |
 | Alta | Criar título/descrição só com espaços satisfazia `minLength` do HTML; o código fazia `trim()` sem validar o resultado e publicava conteúdo vazio. | Validação após remoção dos espaços, mensagem específica e preservação do preenchimento para correção. Cadastro também rejeita campos apenas com espaços. |
 | Média | Publicar um item novo e compartilhar gerava `#anuncio-9`; outro navegador ou recarregamento não possui esse item. | Compartilhamento de itens temporários explica o limite sem oferecer link enganoso. Exemplos iniciais continuam compartilháveis e têm alternativa de cópia manual. |

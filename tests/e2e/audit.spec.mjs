@@ -36,8 +36,12 @@ test('modal mantém foco, bloqueia fundo, fecha com Escape e devolve foco', asyn
   await expect(trigger).toBeFocused();
 });
 
-test('tema escuro mantém contraste em avisos e indicadores',async({page},testInfo)=>{
+test('temas claro e escuro mantêm contraste nos textos verificados',async({page},testInfo)=>{
   await page.goto('/#anuncio-1');
+  for(const selector of ['.back','.muted']){
+    const color=await page.locator(selector).first().evaluate(el=>getComputedStyle(el).color);
+    expect(contrast(color,'rgb(242, 246, 249)')).toBeGreaterThanOrEqual(4.5);
+  }
   await page.getByRole('button',{name:'Alternar tema'}).click();
   for(const selector of ['.tip','.pill']){
     const colors=await page.locator(selector).first().evaluate(el=>{const s=getComputedStyle(el);return [s.color,s.backgroundColor]});
