@@ -22,5 +22,8 @@ jobs:
         run: npm ci
       - name: Testes unitários
         run: npm test
+      - name: Verificar esquema SQL
+        run: python3 tests/schema_test.py
       - name: Compilar para produção
         run: npm run build
+

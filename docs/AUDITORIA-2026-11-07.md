@@ -1,5 +1,7 @@
 # Auditoria de qualidade — VENDE+ — 07/11/2026
 
+Registro histórico da versão auditada. Para o estado atual, consulte [Implementação do marketplace](IMPLEMENTACAO-MARKETPLACE.md).
+
 A demonstração recebeu correções de acessibilidade, navegação, validação e moderação na branch `feat/ux-compra-venda-v2`, no PR #2. O projeto continua demonstrativo; não está pronto para operar um marketplace com dados reais.
 
 ## Escopo e método

@@ -10,4 +10,5 @@
 
 **D5 Marca:** VENDE+ é o nome de trabalho escolhido; checar conflitos de marca antes de domínio e divulgação comercial.
 
-**Escopo Fase 1:** código local com dados fictícios. Não é um serviço pronto para produção.
+**Escopo atual:** vitrine pública sem dados fixos, API de leitura preparada para D1 e rascunhos persistidos no navegador. Publicação online, contas e administração protegida ainda não foram ativadas. Não é um serviço pronto para operação comercial.
+

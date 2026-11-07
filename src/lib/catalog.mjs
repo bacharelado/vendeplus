@@ -1,4 +1,3 @@
-/** Busca pública: anúncios não publicados jamais entram nos resultados. */
 export function filterListings(listings, filters = {}) {
   const {category = 'Todas', condition = 'Todas', query = '', sortOrder = 'recentes'} = filters;
   const normalized = String(query).trim().toLocaleLowerCase('pt-BR');
@@ -13,3 +12,4 @@ export function filterListings(listings, filters = {}) {
       return b.id - a.id;
     });
 }
+

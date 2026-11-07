@@ -1,77 +1,59 @@
-# VENDE+ — Fundação do Software (Fase 1)
+# VENDE+
 
-**APOCALYPTIC · piloto Poranga II, Itacoatiara-AM**
+Marketplace comunitário do Poranga II, Itacoatiara-AM. Produto APOCALYPTIC.
 
-Este pacote é o **código-fonte de uma demonstração local em React + Vite + TypeScript**. Todas as pessoas, produtos e indicadores são fictícios. Nenhum dado persiste ao recarregar. Não há autenticação, servidor de aplicação, banco, pagamento, WhatsApp real ou painel administrativo protegido.
+## Desenvolvimento
 
-## Abrir no Windows 10
+Node.js 22.12+ e Git:
 
-1. Instale **Node.js 22.12+** e Git; confirme no Prompt de Comando:
-   ```bat
-   node -v
-   npm -v
-   ```
-2. Obtenha a branch de desenvolvimento pelo GitHub:
-   ```bat
-   git clone --branch feat/ux-compra-venda-v2 https://github.com/bacharelado/vendeplus.git
-   cd vendeplus
-   ```
-3. No terminal aberto **dentro da pasta do projeto**, execute:
-   ```bat
-   npm ci
-   npm run dev
-   ```
-4. Abra **http://localhost:5173**.
+```sh
+git clone --branch feat/ux-compra-venda-v2 https://github.com/bacharelado/vendeplus.git
+cd vendeplus
+npm ci
+npm run dev
+```
 
-Alternativa: dê dois cliques em `scripts\iniciar-windows.bat` na pasta clonada. O `npm ci` exige conexão com a internet, mas os pacotes são gratuitos.
+## O que funciona
 
-### Outros comandos
-```bat
-npm run test
+- Vitrine responsiva, categorias, pesquisa, filtros, ordenação, temas e navegação por teclado.
+- Rascunhos salvos no navegador, com edição, exclusão confirmada, persistência e tratamento de erro de armazenamento.
+- Catálogo servido por `/api/listings`, sem anúncios pré-carregados no cliente.
+- API somente de leitura, preparada para Cloudflare Pages Functions e banco D1.
+- Esquema SQL com restrições e consulta que exige anúncio publicado e vendedor aprovado.
+- Detalhe e compartilhamento dos anúncios retornados pela API. Link do WhatsApp somente quando o servidor fornece um contato válido.
+
+## Situação operacional
+
+A vinculação do banco `MARKETPLACE_DB` não foi configurada. Sem o banco ou em caso de erro, a API retorna 503 e a interface mostra o catálogo indisponível; não substitui dados ausentes por produtos inventados.
+
+A publicação online, contas de vendedores, uploads, autenticação e administração protegida ainda precisam de implementação. Os rascunhos são privados do navegador e não são enviados a um servidor.
+
+A branch de desenvolvimento atualiza a prévia do Cloudflare Pages. A versão principal exige aprovação expressa do CEO antes de merge ou publicação.
+
+## Verificações
+
+```sh
+npm test
+python3 tests/schema_test.py
 npm run typecheck
 npm run build
 npx playwright install chromium
 npm run test:e2e
 ```
 
-`npm run build` gera uma versão estática em `dist/`; isso **não autoriza** publicar para clientes reais.
+Os testes E2E usam respostas de API controladas exclusivamente no ambiente de testes. Não gravam anúncios públicos nem enviam mensagens. Capturas e relatórios ficam nos artefatos do GitHub Actions.
 
-## Organização
-```
-src/
-  components/ListingCard.tsx   cartão reutilizável
-  data/mock.ts                anúncios e tipos fictícios
-  lib/pricing.mjs             preço e filtros simples de demonstração
-  lib/pricing.d.mts           tipagem do módulo JS
-  styles/app.css              identidade visual
-  App.tsx                     telas e navegação com hash
-  main.tsx                    ponto de entrada
-referencia/prototipo-v1.3.html  artefato de Claude preservado
-scripts/iniciar-windows.bat     atalho opcional
-```
+## Linguagens
 
-## Limitações importantes
-- Os filtros de palavras e estados são **apenas demonstrações de interface**; podem falhar e não são controles ant fraude.
-- A navegação "Ver como: Admin" é livre justamente por se tratar de demo; não a use em produção.
-- Não insira dados pessoais reais nesta aplicação.
-- Nenhuma senha, API key, token ou número real de vendedor deve ser inserido no código.
-- O nome **VENDE+** é de trabalho e pode ter conflitos marcários; verificar antes de divulgação comercial.
-- Na Fase 2, operações sensíveis passarão por funções de servidor e RLS, com revisão de LGPD e testes.
+| Linguagem | Uso |
+| --- | --- |
+| TypeScript / TSX | Interface React, contrato do catálogo e Pages Function |
+| JavaScript | Persistência local, preços, filtros e testes |
+| HTML | Documento de entrada e metadados |
+| CSS | Identidade visual, temas e responsividade |
+| SQL | Esquema relacional e consulta do catálogo |
+| Python | Testes do esquema com SQLite real em memória |
 
-## Verificação nesta entrega
-- `npm test`: preços, classificação e filtros.
-- `npm run build`: TypeScript e compilação Vite.
-- `npm run test:e2e`: fluxos em Chromium desktop e emulação de celular; exige `npx playwright install chromium`.
-- GitHub Actions instala dependências com `npm ci` e mantém os relatórios e capturas por 7 dias.
-- A [auditoria de 07/11/2026](docs/AUDITORIA-2026-11-07.md) registra evidências, correções, limites e pendências. Build aprovado não substitui inspeção visual nem garante segurança de produção.
+O código de aplicação e os novos testes não contêm comentários.
 
-## Decisões vigentes
-D1: confirmação manual do WhatsApp de vendedores; D2: regulamento v0.1 como base, revisão jurídica antes do público; D3: vínculo declarado com Poranga II; D4: orçamento R$ 0, nenhuma assinatura; D5: VENDE+ nome de trabalho, investigação da marca pendente.
-
-## Próximas etapas (ainda não implementadas)
-1. Validar instalação e compilação no Windows.
-2. Migrar/modularizar toda a funcionalidade do protótipo v1.3, com testes de UI.
-3. Planejar e implementar autenticação real, autorização e banco Supabase (plano gratuito) em ambiente isolado.
-4. Criar upload seguro de imagens, denúncias com evidências, auditoria e moderação verificável no servidor.
-5. Validar com moradores/comerciantes; revisar questões legais e custos antes de qualquer lançamento real.
-
+[Estado da implementação](docs/IMPLEMENTACAO-MARKETPLACE.md) · [Diretrizes](docs/DECISOES.md) · [Próximos controles de segurança](docs/SEGURANCA.md)
