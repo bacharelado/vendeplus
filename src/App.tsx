@@ -2,6 +2,7 @@ import {useEffect, useState, type FormEvent, type ReactNode} from 'react';
 import {ListingCard} from './components/ListingCard';
 import {categories, initialListings, type Category, type Listing, type ListingStatus} from './data/mock';
 import {classifyContent, formatBRL, parseBRL} from './lib/pricing.mjs';
+import {filterListings} from './lib/catalog.mjs';
 
 type Area = 'publico'|'vendedor'|'admin';
 type Page = {name: 'inicio'|'catalogo'|'anuncio'|'cadastro'|'painel'|'publicar'|'admin'; id?:number};
@@ -43,7 +44,7 @@ export function App(){
   const show=(title:string,content:ReactNode)=>{setDialogTitle(title);setDialog(content)};
   const area=areaOf(page);
   const visible=listings.filter(l=>l.status==='PUBLICADO');
-  const filtered=visible.filter(l=>(category==='Todas'||l.category===category)&&(condition==='Todas'||l.condition===condition)&&`${l.title} ${l.description} ${l.seller}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).sort((a,b)=>sortOrder==='menor'?(a.priceCents??Number.MAX_SAFE_INTEGER)-(b.priceCents??Number.MAX_SAFE_INTEGER):sortOrder==='maior'?(b.priceCents??-1)-(a.priceCents??-1):b.id-a.id);
+  const filtered=filterListings(listings,{category,condition,query,sortOrder});
   const resetFilters=()=>{setQuery('');setCategory('Todas');setCondition('Todas');setSortOrder('recentes');};
   const active=page.id?listings.find(l=>l.id===page.id):undefined;
   const mine=listings.filter(l=>l.owner&&l.status!=='REMOVIDO');
