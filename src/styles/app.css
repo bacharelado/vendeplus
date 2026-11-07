@@ -121,3 +121,27 @@
 @media(max-width:699px){.main{padding-top:18px;padding-bottom:112px}.topbar-row{height:57px}.brand{font-size:1.6rem}.hero{border-radius:21px;padding:24px 19px}.hero h1{font-size:clamp(1.9rem,8vw,2.6rem)}.hero p{font-size:.95rem}.hero-visual{height:195px}.hero-actions{flex-direction:row}.hero-actions .button{flex:1;min-width:135px}.search{flex-direction:column}.search button{width:100%}.product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.listing-body{padding:12px}.price{font-size:1.14rem}.listing-title{font-size:.91rem}.listing-image-label{font-size:.57rem}.category-grid{gap:9px}.category{min-height:94px}.mobile-bottom{display:grid}.mobile-bottom a[aria-current="page"]{background:#e5f6ee}.detail{grid-template-columns:1fr}.detail-image{aspect-ratio:5/4}}
 @media(max-width:360px){.hero-actions{flex-direction:column}.hero-visual-caption{flex-direction:column;align-items:flex-start}}
 @media(prefers-reduced-motion:reduce){.button,.category,.listing-card,.listing-image img{transition:none}.button:hover,.category:hover,.listing-card:hover{transform:none}}
+
+
+/* Correções verificadas na auditoria: contraste, foco e conteúdo longo. */
+.modal{border:1px solid var(--border);margin:auto;max-height:85dvh;box-shadow:0 20px 60px #07172755;overflow-wrap:anywhere}
+.modal::backdrop{background:#0b1620ad}
+.modal input,.modal select{width:100%}
+.modal label{display:grid;gap:8px;margin-bottom:16px}
+.ghost,.theme,.chips button,.filter-feedback button{min-width:44px;min-height:44px}
+.skip-link{position:fixed;top:8px;left:12px;z-index:30;background:var(--surface);padding:12px;border:2px solid var(--primary);transform:translateY(-160%)}
+.skip-link:focus{transform:translateY(0)}
+.main:focus{outline:none}
+.detail h1,.detail p,.listing-line-body,.modal h2{overflow-wrap:anywhere}
+.detail-subtitle{font-size:1rem;margin:1.25rem 0 .5rem}
+.app.dark{color-scheme:dark}
+.app.dark .tip{background:#352f22;color:#fff0d1;border-color:#8c7549}
+.app.dark .pill{background:#164b43;color:#b2f4df}
+.app.dark .stats strong,.app.dark .filter-feedback button{color:#82ddc1}
+.app.dark .mobile-bottom a[aria-current="page"]{background:#1b443b;color:#b2f4df}
+.app.dark .search{color-scheme:light}
+.app.dark .search input{background:white;color:#172838}
+.button.primary{background:linear-gradient(180deg,#177557,#11563f)}
+.button.teal{background:linear-gradient(180deg,#137761,#105b4c)}
+.button.primary:hover,.button.teal:hover{background:#104f3e}
+@media(max-width:699px){.footer{padding-bottom:calc(90px + env(safe-area-inset-bottom))}.modal{max-width:calc(100vw - 28px);padding:18px}}

@@ -105,5 +105,6 @@ test('se fotos externas falharem, o anúncio mantém uma alternativa visível', 
   await expect(page.locator('.hero-visual-fallback')).toBeVisible();
   const imageCard = page.locator('.listing-card').first();
   await expect(imageCard.locator('.photo-fallback')).toBeVisible();
-  await expect(imageCard.locator('.listing-image-label')).toHaveText('Foto ilustrativa');
+  await expect(imageCard.locator('.listing-image-label')).toHaveText(/Foto ilustrativa|Ilustração da categoria/);
 });
+

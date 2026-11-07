@@ -26,7 +26,6 @@ No diretório do repositório:
 
 ```cmd
 npm ci
-npm install --no-save --package-lock=false @playwright/test@1.64.1
 npx playwright install chromium
 npx playwright test
 npx playwright show-report
@@ -51,3 +50,4 @@ A navegação interativa com Work precisa ser iniciada pelo usuário no produto;
 ## Política de publicação
 
 O site principal só muda quando a atualização for revisada e a alteração aprovada. **Build verde não prova ausência de bugs**: resultados dos testes devem ser analisados e problemas reportados devem gerar correções e novos testes.
+

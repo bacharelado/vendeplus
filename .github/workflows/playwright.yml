@@ -36,9 +36,6 @@ jobs:
       - name: Instalar dependências do projeto
         run: npm ci
 
-      - name: Instalar Playwright sem alterar o package-lock
-        run: npm install --no-save --package-lock=false @playwright/test@1.64.1
-
       - name: Instalar Chromium de testes
         run: npx playwright install --with-deps chromium
 
@@ -64,3 +61,4 @@ jobs:
             test-results/
           retention-days: 7
           if-no-files-found: warn
+

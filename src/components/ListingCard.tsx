@@ -7,7 +7,7 @@ export function ListingCard({listing}:Props) {
     <div className="listing-image" aria-hidden="true">
       <span className="photo-fallback">{listing.emoji}</span>
       {listing.image && <img src={listing.image} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={e=>{e.currentTarget.hidden=true}} />}
-      <span className="listing-image-label">Foto ilustrativa</span>
+      <span className="listing-image-label">{listing.image?'Foto ilustrativa':'Ilustração da categoria'}</span>
     </div>
     <div className="listing-body">
       <strong className="price">{formatBRL(listing.priceCents)}</strong>
@@ -16,3 +16,4 @@ export function ListingCard({listing}:Props) {
     </div>
   </a>;
 }
+
