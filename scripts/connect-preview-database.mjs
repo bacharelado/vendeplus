@@ -32,7 +32,9 @@ export async function connectPreviewDatabase({token,ref,commit,migration,fetchIm
     }catch{throw new Error(`Não foi possível concluir ${method} na API Cloudflare. Nenhum token foi registrado.`)}
     if(!response.ok||data?.success!==true){
       const codes=Array.isArray(data?.errors)?data.errors.map(item=>item.code).filter(Number.isInteger).join(', '):'';
-      throw new Error(`Cloudflare recusou ${method}: HTTP ${response.status}${codes?'; códigos '+codes:''}. Confira as permissões D1 e Cloudflare Pages do token.`);
+      const messages=Array.isArray(data?.errors)?data.errors.map(item=>typeof item.message==='string'?item.message.replaceAll(token.trim(),'[redigido]').slice(0,200):'').filter(Boolean).join('; '):'';
+      const hint=[401,403].includes(response.status)?' Confira as permissões D1 e Cloudflare Pages do token.':'';
+      throw new Error(`Cloudflare recusou ${method} ${path.split('?')[0]}: HTTP ${response.status}${codes?'; códigos '+codes:''}${messages?'; '+messages:''}.${hint}`);
     }
     return data;
   };
@@ -84,7 +86,7 @@ export async function connectPreviewDatabase({token,ref,commit,migration,fetchIm
   if(bound.deployment_configs.preview?.d1_databases?.MARKETPLACE_DB?.id!==database.uuid)throw new Error('A vinculação da prévia não foi confirmada.');
   let target;
   for(let attempt=0;attempt<maxPolls;attempt++){
-    const {result}=await call(`${projectPath}/deployments?env=preview&per_page=100`);
+    const {result}=await call(`${projectPath}/deployments?env=preview`);
     if(!Array.isArray(result))throw new Error('Não foi possível consultar os deployments da prévia.');
     target=result.find(item=>item.environment==='preview'&&deploymentBranch(item)===branchName&&deploymentCommit(item)===commit);
     if(target&&finished(target))break;

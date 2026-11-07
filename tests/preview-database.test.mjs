@@ -37,7 +37,10 @@ function harness(options={}){
       if(init.body.includes('sqlite_master'))return response([{success:true,results:[{name:'marketplace_listings'},{name:'marketplace_sellers'}]}]);
       return response([{success:!options.failedMigration}]);
     }
-    if(url.includes('/deployments?'))return response(options.missingDeployment?[]:[deploy]);
+    if(url.includes('/deployments?')){
+      if(Number(new URL(url).searchParams.get('per_page'))>25)return response(null,400);
+      return response(options.missingDeployment?[]:[deploy]);
+    }
     if(url.endsWith('/retry'))return response({...deploy,id:retriedId,latest_stage:{name:options.failedBuild?'build':'deploy',status:options.failedBuild?'failure':'success'}});
     if(url.endsWith('/pages/projects/vendeplus')){
       if(init.method==='PATCH')project.deployment_configs.preview.d1_databases=JSON.parse(init.body).deployment_configs.preview.d1_databases;
@@ -118,3 +121,5 @@ test('aceita somente subdomínio HTTPS de prévia, nunca produção ou outro hos
   assert.equal(publicPreviewUrl('https://hash.vendeplus.pages.dev/'),'https://hash.vendeplus.pages.dev');
   for(const url of ['https://vendeplus.pages.dev','http://hash.vendeplus.pages.dev','https://hash.vendeplus.pages.dev.evil.test','https://user:password@hash.vendeplus.pages.dev','https://hash.vendeplus.pages.dev:8443'])assert.throws(()=>publicPreviewUrl(url));
 });
+
+test('listagem de deployments usa a paginação padrão aceita pelo provedor',async()=>{const h=harness();await h.run();const request=h.requests.find(r=>r.url.includes('/deployments?'));assert.equal(new URL(request.url).searchParams.get('per_page'),null);assert.equal(new URL(request.url).searchParams.get('env'),'preview')});
