@@ -20,3 +20,10 @@ export function writeDrafts(storage,drafts){
   if(drafts.length>50||!drafts.every(validDraft))throw new Error('Revise os dados do rascunho.');
   try{storage.setItem(key,JSON.stringify(drafts))}catch{throw new Error('Não foi possível salvar neste navegador. Confira o espaço e as permissões de armazenamento.')}
 }
+
+export function createDraftId(source=globalThis.crypto){
+  if(typeof source?.randomUUID==='function')return source.randomUUID();
+  if(typeof source?.getRandomValues!=='function')throw new Error('Este navegador não oferece suporte ao salvamento de rascunhos.');
+  const bytes=source.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('');
+}

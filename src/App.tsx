@@ -4,7 +4,7 @@ import {ListingCard} from './components/ListingCard';
 import {Icon} from './components/Icon';
 import {filterListings} from './lib/catalog.mjs';
 import {formatBRL,parseBRL} from './lib/pricing.mjs';
-import {readDrafts,writeDrafts} from './lib/drafts.mjs';
+import {createDraftId,readDrafts,writeDrafts} from './lib/drafts.mjs';
 import {fetchCatalog,type CatalogState} from './lib/api';
 
 type Route={name:string;id?:number;draftId?:string};
@@ -49,7 +49,7 @@ function DraftForm({initial,onSave}:{initial?:Draft;onSave:(draft:Draft)=>void})
     const price=parseBRL(form.get('price'),category==='Serviços');
     if(title.length<5||description.length<10||!fulfillment){setError('Preencha título, descrição e atendimento. Espaços em branco não contam.');return}
     if(!price.ok){setError(price.error);return}
-    try{onSave({id:initial?.id||crypto.randomUUID(),title,description,fulfillment,category,condition:String(form.get('condition')) as Condition,priceCents:price.cents,updatedAt:Date.now()})}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível salvar o rascunho.')}
+    try{onSave({id:initial?.id||createDraftId(),title,description,fulfillment,category,condition:String(form.get('condition')) as Condition,priceCents:price.cents,updatedAt:Date.now()})}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível salvar o rascunho.')}
   };
   return <form className="draft-form panel" onSubmit={submit}>
     <div className="form-heading"><span className="step-number">1</span><div><h2>Conte sobre o que você oferece</h2><p>Informações claras ajudam as pessoas a escolher.</p></div></div>
