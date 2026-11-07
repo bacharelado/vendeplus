@@ -34,3 +34,11 @@ A consulta de D1 e o formato de Pages Function seguem a documentação oficial: 
 ## Publicação
 
 Somente a branch `feat/ux-compra-venda-v2` e o PR #2 são alterados. Não fazer merge, provisionar recursos de produção ou ativar a versão principal sem aprovação expressa do CEO.
+
+## Automação de conexão da prévia
+
+Foi preparada `.github/workflows/database-preview.yml`, que depende do segredo de repositório `CLOUDFLARE_API_TOKEN`. A existência do código não confirma que o banco já foi provisionado: o estado remoto deve ser confirmado no resumo de uma execução bem-sucedida e na API da URL de prévia informada pelo workflow.
+
+O script `scripts/connect-preview-database.mjs` recusa a branch principal, banco compartilhado com produção, binding já ocupado por outro banco e deployment que não seja da branch/commit de desenvolvimento. A migração é idempotente e não semeia dados. O token é enviado apenas à API oficial da Cloudflare; a validação da URL pública não recebe credenciais. Respostas de erro do provedor não são copiadas integralmente para logs.
+
+Os testes usam um provedor controlado e conferem preservação de produção, isolamento de segredo, reexecução, falhas de migração/build/API e ausência de acesso de rede sem o segredo. Esses testes não substituem a execução real da conexão.

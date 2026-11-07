@@ -30,6 +30,16 @@ A publicação online, contas de vendedores, uploads, autenticação e administr
 
 A branch de desenvolvimento atualiza a prévia do Cloudflare Pages. A versão principal exige aprovação expressa do CEO antes de merge ou publicação.
 
+## Conectar o banco da prévia
+
+A automação `VENDE+ — Conectar banco da prévia` usa o segredo de repositório `CLOUDFLARE_API_TOKEN`. O token deve ter D1 Edit e Cloudflare Pages Edit somente na conta do VENDE+; seu valor nunca deve ser colocado em arquivos, comentários ou mensagens.
+
+O workflow executa somente na branch `feat/ux-compra-venda-v2`. Ele identifica ou cria `vendeplus-preview`, aplica a migração existente, preserva os outros bindings, vincula `MARKETPLACE_DB` somente em `deployment_configs.preview` e refaz um deployment de prévia do mesmo commit. Antes de confirmar sucesso, valida a API pública e confere que a configuração e o deployment de produção permanecem iguais.
+
+A execução inicial é disparada pelo push dos arquivos da automação. Se o segredo ainda não existir, o job encerra antes de qualquer chamada à Cloudflare. Após cadastrar o segredo, reexecute esse job no GitHub Actions. Não é necessário mesclar a branch para executar a configuração.
+
+O workflow não insere produtos ou vendedores e não habilita publicação sem autenticação. Um catálogo vazio após a conexão é o resultado esperado enquanto não houver anúncios aprovados no banco.
+
 ## Verificações
 
 ```sh
