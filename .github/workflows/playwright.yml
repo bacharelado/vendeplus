@@ -1,0 +1,66 @@
+name: VENDE+ — Auditoria no navegador
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Opcional: URL do VENDE+ no Cloudflare Pages para auditar a versão online'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  navegador:
+    name: Playwright — computador e celular
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      PLAYWRIGHT_BASE_URL: ${{ inputs.target_url }}
+    steps:
+      - name: Baixar código do VENDE+
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependências do projeto
+        run: npm ci
+
+      - name: Instalar Playwright sem alterar o package-lock
+        run: npm install --no-save --package-lock=false @playwright/test@1.64.1
+
+      - name: Instalar Chromium de testes
+        run: npx playwright install --with-deps chromium
+
+      - name: Validar URL de auditoria externa (se informada)
+        run: |
+          if [ -n "$PLAYWRIGHT_BASE_URL" ]; then
+            case "$PLAYWRIGHT_BASE_URL" in
+              https://vendeplus.pages.dev|https://*.vendeplus.pages.dev) ;;
+              *) echo "Permitido somente Cloudflare Pages do VENDE+"; exit 1;;
+            esac
+          fi
+
+      - name: Testar interface, anúncios e experiência mobile
+        run: npx playwright test
+
+      - name: Guardar prints, gravações e relatório de erros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auditoria-playwright-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: warn
