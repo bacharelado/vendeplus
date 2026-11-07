@@ -9,7 +9,7 @@ const project=await cf(`pages/projects/${projectName}`),db=project.deployment_co
 if(!db||Object.values(project.deployment_configs?.production?.d1_databases||{}).some(value=>value.id===db)||project.production_branch===branchName)throw Error('Banco de prévia não isolado. Teste bloqueado.');
 const databases=await cf(`d1/database?name=${databaseName}`);if(!databases.some(value=>value.uuid===db&&value.name===databaseName))throw Error('Banco inesperado.');
 const query=async(sql,params=[])=>cf(`d1/database/${db}/query`,{sql,params});
-const prefix=`preview-${randomBytes(12).toString('hex')}`,emails=[`${prefix}-a@example.invalid`,`${prefix}-b@example.invalid`],password=randomBytes(24).toString('base64url');
+const prefix=`preview-${randomBytes(12).toString('hex')}`,emails=[`${prefix}-a@example.invalid`,`${prefix}-b@example.invalid`],password=randomBytes(6).toString('base64url');
 const create=email=>({email,password,name:'Verificação automatizada privada',neighborhood:'Poranga II',whatsapp:'5592000000000',acceptContact:true});
 async function api(path,method='GET',body,cookie=''){
  const response=await fetch(origin+'/api/account/'+path,{method,redirect:'error',headers:{Origin:origin,Accept:'application/json','Content-Type':'application/json',Cookie:cookie},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});

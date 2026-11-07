@@ -62,3 +62,12 @@ test('limite de tentativas persiste no banco sem guardar IP e e-mail em texto',a
 test('identificador aleatório de navegador sem randomUUID também funciona',async()=>{
  const h=harness(),owner=await h.request('register','POST',registration());assert.equal((await h.request('listings','POST',offer('a'.repeat(32)),owner.cookie)).status,201);assert.equal((await h.request('listings','POST',offer('-'.repeat(36)),owner.cookie)).status,400);
 });
+
+test('cadastro e login aceitam senha de oito caracteres, preservando hash e sessão',async()=>{
+ const h=harness(),data={...registration(),password:'Teste#26'};
+ assert.equal((await h.request('register','POST',{...data,password:'curta'})).status,400);
+ const registered=await h.request('register','POST',data);assert.equal(registered.status,201);
+ assert.equal((await h.request('logout','POST',{},registered.cookie)).status,200);
+ const login=await h.request('login','POST',data);assert.equal(login.status,200);assert(login.cookie);
+ assert.equal((await h.request('login','POST',{...data,password:'Teste#27'})).status,401);
+});

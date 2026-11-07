@@ -51,7 +51,7 @@ export async function handleAccount({request,env}:Context){
   if(path==='/session'&&request.method==='GET')return reply({account:await session(db,request)});
   if((path==='/register'||path==='/login')&&request.method==='POST'){
    const email=text(data.email,5,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Failure('Informe um e-mail válido.');
-   const password=typeof data.password==='string'?data.password:'';if(password.length<12||password.length>128)throw new Failure('Use uma senha entre 12 e 128 caracteres.');
+   const password=typeof data.password==='string'?data.password:'';if(password.length<8||password.length>128)throw new Failure('Use uma senha entre 8 e 128 caracteres.');
    await rate(db,`auth-ip:${request.headers.get('CF-Connecting-IP')||'unknown'}`,20);
    await rate(db,`auth-email:${email}`,10);
    const token=randomBytes(32).toString('hex');

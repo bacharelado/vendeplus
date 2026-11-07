@@ -132,7 +132,7 @@ test('admin exige acesso e cadastro apresenta os campos reais',async({page})=>{
   await expect(page.getByRole('button',{name:/Aprovar|Ligar|Resolver/})).toHaveCount(0);
   await page.goto('/#cadastro');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
   await expect(page.getByRole('textbox',{name:'E-mail'})).toBeVisible();
-  await expect(page.getByLabel('Senha',{exact:true})).toHaveAttribute('minlength','12');
+  await expect(page.getByLabel('Senha',{exact:true})).toHaveAttribute('minlength','8');
 });
 
 test('todas as páginas cabem em 320 px e na largura do perfil',async({page},info)=>{
@@ -159,7 +159,7 @@ test('tema persiste e navegação mobile funciona',async({page},info)=>{
 
 test('cadastro informa erro da API sem sucesso falso',async({page})=>{
  await catalog(page);await page.route('**/api/account/register',route=>route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'E-mail já utilizado. Entre na sua conta.'})}));
- await page.goto('/#cadastro');await page.getByLabel('Nome para seus anúncios').fill('Conta de teste');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Senha de teste longa!');await page.getByLabel('WhatsApp com DDI e DDD').fill('5592000000000');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Criar conta',exact:true}).click();await expect(page.getByRole('alert')).toContainText('E-mail já utilizado');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
+ await page.goto('/#cadastro');await page.getByLabel('Nome para seus anúncios').fill('Conta de teste');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByLabel('WhatsApp com DDI e DDD').fill('5592000000000');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Criar conta',exact:true}).click();await expect(page.getByRole('alert')).toContainText('E-mail já utilizado');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
 });
 
 test('conta envia anúncio, mostra análise e encerra sessão',async({page})=>{
@@ -167,7 +167,7 @@ test('conta envia anúncio, mostra análise e encerra sessão',async({page})=>{
  await page.route('**/api/account/login',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({account})}));
  await page.route('**/api/account/listings',async route=>{if(route.request().method()==='POST'){sent=route.request().postDataJSON();offers=[{...sent,id:123,status:'pending'}];return route.fulfill({status:201,contentType:'application/json',body:'{"id":123,"status":"pending"}'})}return route.fulfill({contentType:'application/json',body:JSON.stringify({listings:offers})})});
  await page.route('**/api/account/logout',route=>route.fulfill({contentType:'application/json',body:'{"ok":true}'}));
- await page.goto('/#conta');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Senha de teste longa!');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Sua área de vendedor.'})).toBeVisible();
+ await page.goto('/#conta');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Sua área de vendedor.'})).toBeVisible();
  await page.getByRole('button',{name:'Enviar novo anúncio'}).click();await page.getByLabel('Título do anúncio').fill('Item de teste automatizado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Descrição',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Atendimento ou entrega').fill('Retirada a combinar');await page.getByRole('button',{name:'Enviar para revisão'}).click();await expect(page.locator('.account-offer')).toContainText('Em análise');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
  await page.getByRole('button',{name:'Sair da conta'}).click();await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
 });
