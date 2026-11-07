@@ -24,7 +24,7 @@ npm run dev
 
 ## Situação operacional
 
-A vinculação do banco `MARKETPLACE_DB` não foi configurada. Sem o banco ou em caso de erro, a API retorna 503 e a interface mostra o catálogo indisponível; não substitui dados ausentes por produtos inventados.
+O banco D1 `vendeplus-preview` está configurado com o binding `MARKETPLACE_DB` somente na prévia. As tabelas foram aplicadas e a API foi validada em 07/11/2026 na [execução 42416744909](https://github.com/bacharelado/vendeplus/actions/runs/42416744909), retornando um catálogo vazio. A configuração e o deployment de produção foram preservados. Sem o banco ou em caso de erro, a API retorna 503; a interface não inventa ofertas.
 
 A publicação online, contas de vendedores, uploads, autenticação e administração protegida ainda precisam de implementação. Os rascunhos são privados do navegador e não são enviados a um servidor.
 

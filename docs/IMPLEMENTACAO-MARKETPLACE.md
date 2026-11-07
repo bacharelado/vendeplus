@@ -14,11 +14,11 @@ O catálogo faz GET em `/api/listings`. A Pages Function executa uma consulta re
 
 O esquema usa as tabelas `marketplace_sellers` e `marketplace_listings`, chave estrangeira, estados enumerados, limites de tamanho, preços inteiros em centavos e índices. Preço vazio é permitido apenas para Serviços. O WhatsApp precisa estar em formato brasileiro com DDI 55 para virar link no detalhe; a aplicação não envia mensagens automaticamente.
 
-## Integração ainda necessária
+## Conexão atual e integrações pendentes
 
-A vinculação `MARKETPLACE_DB` e a migração ainda não foram aplicadas em nenhum ambiente Cloudflare. A prévia mostra o catálogo indisponível até essa configuração. O Vite local não executa Pages Functions.
+Em 07/11/2026, a automação [42416744909](https://github.com/bacharelado/vendeplus/actions/runs/42416744909) confirmou o banco `vendeplus-preview`, a migração e o binding `MARKETPLACE_DB` somente no ambiente de prévia. O deployment da branch de desenvolvimento foi refeito e a API retornou uma lista vazia de anúncios. A configuração e o deployment de produção permaneceram iguais. A conferência no navegador também mostrou o catálogo disponível com zero ofertas. O Vite local não executa Pages Functions.
 
-A ativação deve começar por um banco exclusivo da prévia, sem reutilizar dados de produção. O responsável deve aplicar `migrations/0001_marketplace.sql`, conferir as restrições e vincular o recurso à Pages Function somente no ambiente de prévia. Essa configuração não foi executada nesta entrega e não deve disparar publicação na versão principal.
+A conexão usou um banco exclusivo da prévia, sem reutilizar dados de produção, e a migração `migrations/0001_marketplace.sql`. Os rascunhos locais não foram enviados ao banco e nenhum vendedor ou anúncio fictício foi inserido. A conexão de produção continua dependendo de aprovação expressa e não foi realizada.
 
 A criação de conta, publicação online, moderação autenticada, imagens enviadas por vendedores e denúncias persistidas não estão implementadas. Não há botão público que finja concluir essas operações. A rota antiga de administração apenas informa que não está disponível na área pública.
 
@@ -37,7 +37,7 @@ Somente a branch `feat/ux-compra-venda-v2` e o PR #2 são alterados. Não fazer 
 
 ## Automação de conexão da prévia
 
-Foi preparada `.github/workflows/database-preview.yml`, que depende do segredo de repositório `CLOUDFLARE_API_TOKEN`. A existência do código não confirma que o banco já foi provisionado: o estado remoto deve ser confirmado no resumo de uma execução bem-sucedida e na API da URL de prévia informada pelo workflow.
+O workflow `.github/workflows/database-preview.yml` usa o segredo de repositório `CLOUDFLARE_API_TOKEN`. A execução 42416744909 concluiu com sucesso e confirmou o estado remoto. As tentativas iniciais criaram o banco, aplicaram as tabelas e fizeram o binding, mas falharam ao listar deployments com um parâmetro de paginação recusado pelo provedor. A consulta foi corrigida para usar a paginação padrão; a reexecução reutilizou o mesmo banco, sem duplicação.
 
 O script `scripts/connect-preview-database.mjs` recusa a branch principal, banco compartilhado com produção, binding já ocupado por outro banco e deployment que não seja da branch/commit de desenvolvimento. A migração é idempotente e não semeia dados. O token é enviado apenas à API oficial da Cloudflare; a validação da URL pública não recebe credenciais. Respostas de erro do provedor não são copiadas integralmente para logs.
 
