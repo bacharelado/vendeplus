@@ -5,7 +5,7 @@ on:
     paths:
       - .github/workflows/database-preview.yml
       - scripts/connect-preview-database.mjs
-      - migrations/0001_marketplace.sql
+      - 'migrations/*.sql'
   workflow_dispatch:
 permissions:
   contents: read
@@ -29,6 +29,12 @@ jobs:
       - name: Validar proteções da automação
         run: node --test tests/preview-database.test.mjs
       - name: Criar banco, aplicar tabelas e validar somente preview
+        id: conectar
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node scripts/connect-preview-database.mjs
+      - name: Testar cadastro e envio real, removendo os dados de teste
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PREVIEW_URL: ${{ steps.conectar.outputs.preview_url }}
+        run: node scripts/test-preview-accounts.mjs

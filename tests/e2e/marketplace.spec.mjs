@@ -3,7 +3,7 @@ const items=[
   {id:101,title:'Mesa de teste',description:'Mesa usada na verificação automatizada da interface.',priceCents:15000,category:'Casa',condition:'Usado',seller:'Anunciante de teste',fulfillment:'Retirada a combinar',status:'PUBLICADO',createdAt:1},
   {id:102,title:'Serviço de teste',description:'Serviço usado na verificação automatizada da interface.',priceCents:null,category:'Serviços',condition:'Não aplicável',seller:'Anunciante de teste',fulfillment:'Atendimento a combinar',status:'PUBLICADO',createdAt:2}
 ];
-async function catalog(page,listings=[]){await page.route('**/api/listings',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({listings})}))}
+async function catalog(page,listings=[]){await page.route('**/api/account/session',route=>route.fulfill({contentType:'application/json',body:'{"account":null}'}));await page.route('**/api/listings',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({listings})}))}
 async function fillDraft(page,title='Produto para teste'){
   await page.goto('/#publicar');
   await page.getByRole('textbox',{name:'Título do anúncio'}).fill(title);
@@ -127,11 +127,12 @@ test('contato real fornecido gera somente um link sem envio automático',async({
   await expect(link).toHaveAttribute('rel','noopener noreferrer');
 });
 
-test('admin não oferece controles públicos e cadastro não finge criar conta',async({page})=>{
-  await catalog(page);await page.goto('/#admin');await expect(page.getByRole('heading',{name:'Área restrita'})).toBeVisible();
+test('admin exige acesso e cadastro apresenta os campos reais',async({page})=>{
+  await catalog(page);await page.goto('/#admin');await expect(page.getByRole('heading',{name:'Revisão de anúncios.'})).toBeVisible();
   await expect(page.getByRole('button',{name:/Aprovar|Ligar|Resolver/})).toHaveCount(0);
-  await page.goto('/#cadastro');await expect(page.getByRole('heading',{name:'Meus rascunhos.'})).toBeVisible();
-  await expect(page.getByRole('textbox',{name:'E-mail'})).toHaveCount(0);
+  await page.goto('/#cadastro');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
+  await expect(page.getByRole('textbox',{name:'E-mail'})).toBeVisible();
+  await expect(page.getByLabel('Senha',{exact:true})).toHaveAttribute('minlength','12');
 });
 
 test('todas as páginas cabem em 320 px e na largura do perfil',async({page},info)=>{
@@ -139,7 +140,7 @@ test('todas as páginas cabem em 320 px e na largura do perfil',async({page},inf
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   for(const width of [info.project.name.startsWith('mobile')?393:1280,320]){
     await page.setViewportSize({width,height:900});
-    for(const route of ['inicio','catalogo','publicar','painel','anuncio-101','anuncio-999','admin','como-funciona','inexistente']){
+    for(const route of ['inicio','catalogo','publicar','painel','anuncio-101','anuncio-999','admin','cadastro','conta','como-funciona','inexistente']){
       await page.goto('/#'+route);await expect(page.locator('main h1,main .empty-state h2').first()).toBeVisible();
       expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
       await page.screenshot({path:info.outputPath(`${route}-${width}.png`),fullPage:true});
@@ -153,4 +154,20 @@ test('tema persiste e navegação mobile funciona',async({page},info)=>{
   await page.screenshot({path:info.outputPath('tema-escuro.png'),fullPage:true});
   const mobile=page.getByRole('navigation',{name:'Atalhos para celular'});
   if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Buscar',exact:true}).click();await expect(page).toHaveURL(/#catalogo$/)}else{await expect(mobile).toBeHidden()}
+});
+
+
+test('cadastro informa erro da API sem sucesso falso',async({page})=>{
+ await catalog(page);await page.route('**/api/account/register',route=>route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'E-mail já utilizado. Entre na sua conta.'})}));
+ await page.goto('/#cadastro');await page.getByLabel('Nome para seus anúncios').fill('Conta de teste');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Senha de teste longa!');await page.getByLabel('WhatsApp com DDI e DDD').fill('5592000000000');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Criar conta',exact:true}).click();await expect(page.getByRole('alert')).toContainText('E-mail já utilizado');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
+});
+
+test('conta envia anúncio, mostra análise e encerra sessão',async({page})=>{
+ await catalog(page);const account={id:'teste',name:'Conta de teste',email:'teste@example.invalid',neighborhood:'Poranga II',role:'seller',status:'pending'};let offers=[];let sent;
+ await page.route('**/api/account/login',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({account})}));
+ await page.route('**/api/account/listings',async route=>{if(route.request().method()==='POST'){sent=route.request().postDataJSON();offers=[{...sent,id:123,status:'pending'}];return route.fulfill({status:201,contentType:'application/json',body:'{"id":123,"status":"pending"}'})}return route.fulfill({contentType:'application/json',body:JSON.stringify({listings:offers})})});
+ await page.route('**/api/account/logout',route=>route.fulfill({contentType:'application/json',body:'{"ok":true}'}));
+ await page.goto('/#conta');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Senha de teste longa!');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Sua área de vendedor.'})).toBeVisible();
+ await page.getByRole('button',{name:'Enviar novo anúncio'}).click();await page.getByLabel('Título do anúncio').fill('Item de teste automatizado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Descrição',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Atendimento ou entrega').fill('Retirada a combinar');await page.getByRole('button',{name:'Enviar para revisão'}).click();await expect(page.locator('.account-offer')).toContainText('Em análise');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
+ await page.getByRole('button',{name:'Sair da conta'}).click();await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
 });

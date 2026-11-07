@@ -1,4 +1,4 @@
-import {readFile,appendFile} from 'node:fs/promises';
+import {readFile,readdir,appendFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 
 export const accountId='3466eb459952187515061f97996a9a17';
@@ -78,9 +78,13 @@ export async function connectPreviewDatabase({token,ref,commit,migration,fetchIm
   const schema=(await call(`${root}/d1/database/${database.uuid}/query`,'POST',{sql:"SELECT name FROM sqlite_master WHERE type='table' AND name IN ('marketplace_sellers','marketplace_listings') ORDER BY name;"})).result;
   const names=schema?.[0]?.results?.map(row=>row.name)||[];
   if(!names.includes('marketplace_listings')||!names.includes('marketplace_sellers'))throw new Error('As tabelas não foram confirmadas no banco remoto.');
-  if(existingBindings.MARKETPLACE_DB?.id!==database.uuid){
+  const nodeRequired=migration.includes('CREATE TABLE IF NOT EXISTS marketplace_accounts');
+  const previewConfig=before.deployment_configs.preview;
+  const flags=[...new Set([...(previewConfig.compatibility_flags||[]),'nodejs_compat'])];
+  const date=previewConfig.compatibility_date&&previewConfig.compatibility_date>'2025-04-08'?previewConfig.compatibility_date:'2025-04-08';
+  if(existingBindings.MARKETPLACE_DB?.id!==database.uuid||nodeRequired&&(!previewConfig.compatibility_flags?.includes('nodejs_compat')||previewConfig.compatibility_date<date||!previewConfig.compatibility_date)){
     log('Vinculando MARKETPLACE_DB somente ao ambiente preview.');
-    await call(projectPath,'PATCH',{deployment_configs:{preview:{d1_databases:{...existingBindings,MARKETPLACE_DB:{id:database.uuid}}}}});
+    await call(projectPath,'PATCH',{deployment_configs:{preview:{d1_databases:{...existingBindings,MARKETPLACE_DB:{id:database.uuid}},...(nodeRequired?{compatibility_flags:flags,compatibility_date:date}:{})}}});
   }
   const bound=await getProject();ensureProduction(bound);
   if(bound.deployment_configs.preview?.d1_databases?.MARKETPLACE_DB?.id!==database.uuid)throw new Error('A vinculação da prévia não foi confirmada.');
@@ -125,9 +129,11 @@ export async function connectPreviewDatabase({token,ref,commit,migration,fetchIm
 
 async function main(){
   try{
-    const migration=await readFile(new URL('../migrations/0001_marketplace.sql',import.meta.url),'utf8');
+    const files=(await readdir(new URL('../migrations/',import.meta.url))).filter(name=>/^\d{4}_[a-z_]+\.sql$/.test(name)).sort();
+    const migration=(await Promise.all(files.map(name=>readFile(new URL('../migrations/'+name,import.meta.url),'utf8')))).join('\n');
     const result=await connectPreviewDatabase({token:process.env.CLOUDFLARE_API_TOKEN,ref:process.env.GITHUB_REF,commit:process.env.GITHUB_SHA,migration});
-    if(process.env.GITHUB_STEP_SUMMARY)await appendFile(process.env.GITHUB_STEP_SUMMARY,`## Banco da prévia conectado\n\n- Banco: ${result.databaseName}\n- [Prévia validada](${result.previewUrl})\n- API: respondeu com ${result.listingCount} anúncio(s).\n- Configuração e deployment de produção preservados.\n- Nenhum anúncio fictício foi inserido.\n\nA publicação por vendedores ainda exige conta, autorização e endpoint de escrita.\n`);
+    if(process.env.GITHUB_OUTPUT)await appendFile(process.env.GITHUB_OUTPUT,`preview_url=${result.previewUrl}\n`);
+    if(process.env.GITHUB_STEP_SUMMARY)await appendFile(process.env.GITHUB_STEP_SUMMARY,`## Banco da prévia conectado\n\n- Banco: ${result.databaseName}\n- [Prévia validada](${result.previewUrl})\n- API: respondeu com ${result.listingCount} anúncio(s).\n- Configuração e deployment de produção preservados.\n- Nenhum anúncio fictício foi inserido.\n\nCadastro, sessões e envio para revisão devem passar pelo teste de integração da prévia. Nenhum administrador é criado automaticamente.\n`);
   }catch(error){
     console.error(error instanceof Error?error.message:'Não foi possível concluir a configuração da prévia.');process.exitCode=1;
   }

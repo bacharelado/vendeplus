@@ -43,7 +43,7 @@ function harness(options={}){
     }
     if(url.endsWith('/retry'))return response({...deploy,id:retriedId,latest_stage:{name:options.failedBuild?'build':'deploy',status:options.failedBuild?'failure':'success'}});
     if(url.endsWith('/pages/projects/vendeplus')){
-      if(init.method==='PATCH')project.deployment_configs.preview.d1_databases=JSON.parse(init.body).deployment_configs.preview.d1_databases;
+      if(init.method==='PATCH')Object.assign(project.deployment_configs.preview,JSON.parse(init.body).deployment_configs.preview);
       return response(clone(project));
     }
     throw Error('Unexpected request');
@@ -123,3 +123,7 @@ test('aceita somente subdomínio HTTPS de prévia, nunca produção ou outro hos
 });
 
 test('listagem de deployments usa a paginação padrão aceita pelo provedor',async()=>{const h=harness();await h.run();const request=h.requests.find(r=>r.url.includes('/deployments?'));assert.equal(new URL(request.url).searchParams.get('per_page'),null);assert.equal(new URL(request.url).searchParams.get('env'),'preview')});
+
+test('migração de contas habilita crypto apenas na prévia e mantém a configuração de produção',async()=>{
+ const h=harness({bound:true});await h.run({migration:migration+'\nCREATE TABLE IF NOT EXISTS marketplace_accounts (id TEXT);'});const patch=h.requests.find(r=>r.method==='PATCH');assert.deepEqual(patch.body.deployment_configs.preview.compatibility_flags,['nodejs_compat']);assert.equal(patch.body.deployment_configs.preview.compatibility_date,'2025-04-08');assert.deepEqual(h.project.deployment_configs.production,h.initial.deployment_configs.production);
+});
