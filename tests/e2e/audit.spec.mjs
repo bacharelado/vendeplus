@@ -29,7 +29,7 @@ test('modal mantém foco, bloqueia fundo, fecha com Escape e devolve foco', asyn
   await expect(modal.getByRole('button',{name:'Fechar',exact:true})).toBeFocused();
   await page.keyboard.press('Tab');
   await expect.poll(()=>page.evaluate(()=>document.querySelector('dialog').contains(document.activeElement))).toBe(true);
-  await expect(page.getByRole('navigation',{name:'Menu principal'})).toHaveCount(0);
+  await expect(page.getByRole('navigation',{name:'Menu principal'}).getByRole('link',{name:'Início',exact:true}).click({trial:true,timeout:800})).rejects.toThrow();
   await page.screenshot({path:testInfo.outputPath('modal.png'),fullPage:true});
   await page.keyboard.press('Escape');
   await expect(modal).not.toBeVisible();

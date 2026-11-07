@@ -47,7 +47,7 @@ test('detalhe do anúncio, WhatsApp demonstrativo, compartilhamento e denúncia'
   await page.getByRole('link', {name: /Ver moderação de teste/}).click();
   await expect(page).toHaveURL(/#admin$/);
   await expect(page.getByRole('heading', {name: /Moderação e denúncias/})).toBeVisible();
-  await expect(page.locator('.stack')).toContainText('Suspeita de golpe');
+  await expect(page.locator('.listing-line').filter({hasText:'Suspeita de golpe'})).toBeVisible();
   await page.screenshot({path: testInfo.outputPath('moderacao.png'), fullPage: true, animations: 'disabled'});
 });
 
