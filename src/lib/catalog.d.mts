@@ -2,6 +2,7 @@ import type {Listing} from '../data/marketplace';
 export type CatalogFilters = {
   category?: string;
   condition?: string;
+  neighborhood?: string;
   query?: string;
   sortOrder?: 'recentes' | 'menor' | 'maior';
 };
