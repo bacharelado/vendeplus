@@ -128,7 +128,7 @@ test('contato real fornecido gera somente um link sem envio automático',async({
 });
 
 test('admin exige acesso e cadastro apresenta os campos reais',async({page})=>{
-  await catalog(page);await page.goto('/#admin');await expect(page.getByRole('heading',{name:'Revisão de anúncios.'})).toBeVisible();
+  await catalog(page);await page.goto('/#admin');await expect(page.getByRole('heading',{name:'Administração do marketplace.'})).toBeVisible();
   await expect(page.getByRole('button',{name:/Aprovar|Ligar|Resolver/})).toHaveCount(0);
   await page.goto('/#cadastro');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
   await expect(page.getByRole('textbox',{name:'E-mail'})).toBeVisible();
