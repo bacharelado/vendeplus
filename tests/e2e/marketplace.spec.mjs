@@ -186,7 +186,7 @@ test('foto de produto preenche título, categoria e descrição sem inventar pre
    body:JSON.stringify({suggestion:{title:'Cadeira de madeira usada',description:'Cadeira com estrutura de madeira e encosto visível.',category:'Casa',needsReview:true,priceCents:null}})
  }));
  await page.goto('/#publicar');
- const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL7wQAAAABJRU5ErkJggg==','base64');
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGOs6IliwAaYsIoOWgkAFekBbvxvoJ4AAAAASUVORK5CYII=','base64');
  await page.getByLabel('Foto para criar anúncio com IA').setInputFiles({name:'produto.png',mimeType:'image/png',buffer:png});
  await expect(page.getByRole('textbox',{name:'Título do anúncio'})).toHaveValue('Cadeira de madeira usada',{timeout:12000});
  await expect(page.getByRole('combobox',{name:'Categoria'})).toHaveValue('Casa');
