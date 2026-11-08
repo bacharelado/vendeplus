@@ -9,6 +9,7 @@ on:
       - 'functions/**'
       - scripts/test-preview-accounts.mjs
       - scripts/audit-real-account.mjs
+      - src/components/SellerArea.tsx
       - tests/preview-database.test.mjs
   workflow_dispatch:
 permissions:
