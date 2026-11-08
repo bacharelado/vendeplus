@@ -4,7 +4,7 @@ import {accountId,projectName,branchName} from './connect-preview-database.mjs';
 const databaseName='vendeplus-production';
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const stable=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
-export async function prepareProduction({token,ref,migration,fetchImpl=fetch}){
+export async function prepareProduction({token,ref,migration,fetchImpl=fetch,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}){
  if(ref!=='refs/heads/'+branchName)throw Error('Preparação autorizada somente pela branch de desenvolvimento.');
  if(!token||/[\r\n]/.test(token))throw Error('Acesso Cloudflare ausente.');
  const statements=String(migration||'').split(';').map(s=>s.trim()).filter(Boolean);
@@ -50,9 +50,15 @@ export async function prepareProduction({token,ref,migration,fetchImpl=fetch}){
  if(!binding||!current.compatibility_flags?.includes('nodejs_compat')||current.compatibility_date!==date){
   await api(projectPath,'PATCH',{deployment_configs:{production:{d1_databases:{...(current.d1_databases||{}),MARKETPLACE_DB:{id:database.uuid}},compatibility_flags:flags,compatibility_date:date}}});
  }
- const final=await api(projectPath);
- if(final.production_branch!=='main'||final.deployment_configs.production.d1_databases?.MARKETPLACE_DB?.id!==database.uuid||stable(final.deployment_configs.preview)!==stable(latest.deployment_configs.preview)||final.canonical_deployment?.id!==canonical)throw Error('A preparação final não corresponde ao ambiente esperado.');
- return {ready:true,databaseName,previewPreserved:true,productionDeploymentPreserved:true};
+ let status={};
+ for(let attempt=0;attempt<6;attempt++){
+  const final=await api(projectPath);
+  status={branch:final.production_branch==='main',binding:final.deployment_configs.production.d1_databases?.MARKETPLACE_DB?.id===database.uuid,preview:stable(final.deployment_configs.preview)===stable(latest.deployment_configs.preview),deployment:final.canonical_deployment?.id===canonical};
+  if(Object.values(status).every(Boolean))return {ready:true,databaseName,previewPreserved:true,productionDeploymentPreserved:true};
+  if(!status.preview||!status.branch||!status.deployment)break;
+  await sleep(1000);
+ }
+ throw Error('Preparação não confirmada: '+JSON.stringify(status));
 }
 async function main(){
  const files=(await readdir(new URL('../migrations/',import.meta.url))).filter(n=>/^\d{4}_[a-z0-9_]+\.sql$/.test(n)).sort();
