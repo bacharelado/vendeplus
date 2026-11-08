@@ -137,7 +137,7 @@ export async function connectPreviewDatabase({token,ref,commit,migration,fetchIm
 
 async function main(){
   try{
-    const files=(await readdir(new URL('../migrations/',import.meta.url))).filter(name=>/^\d{4}_[a-z_]+\.sql$/.test(name)).sort();
+    const files=(await readdir(new URL('../migrations/',import.meta.url))).filter(name=>/^\d{4}_[a-z0-9_]+\.sql$/.test(name)).sort();
     const migration=(await Promise.all(files.map(name=>readFile(new URL('../migrations/'+name,import.meta.url),'utf8')))).join('\n');
     const result=await connectPreviewDatabase({token:process.env.CLOUDFLARE_API_TOKEN,ref:process.env.GITHUB_REF,commit:process.env.GITHUB_SHA,migration});
     if(process.env.GITHUB_OUTPUT)await appendFile(process.env.GITHUB_OUTPUT,`preview_url=${result.previewUrl}\n`);
