@@ -9,7 +9,8 @@ function ownedKey(value:unknown,origin:string){
  try{const url=new URL(value);return url.origin===origin&&/^\/api\/media\/[a-f0-9-]{36}\.(png|webp)$/.test(url.pathname)&&!url.search&&!url.hash?url.pathname.slice('/api/media/'.length):null}catch{return null}
 }
 export async function onRequest({request,env}:{request:Request;env:Env}){
- if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'POST'}});
+ if(request.method==='GET')return json({available:!!env.MARKETPLACE_DB&&!!env.LISTING_IMAGES});
+ if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'GET, POST'}});
  if(!env.MARKETPLACE_DB||!env.LISTING_IMAGES)return json({error:'Não foi possível salvar fotos agora. Tente mais tarde.'},503);
  const origin=new URL(request.url).origin;
  if(request.headers.get('Origin')!==origin||request.headers.get('Sec-Fetch-Site')==='cross-site')return json({error:'Abra o site novamente e tente enviar a foto.'},403);

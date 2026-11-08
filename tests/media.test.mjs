@@ -49,3 +49,9 @@ test('falha na limpeza é informada sem fingir que a foto nova não foi salva',a
  h.bucket.delete=async()=>{throw Error('storage error')};
  const response=await h.upload();assert.equal(response.status,200);assert.match((await response.json()).warning,/pendente/);
 });
+
+test('disponibilidade de fotos informa ausência de armazenamento sem expor configurações',async()=>{
+ const request=new Request(origin+'/api/media-upload');
+ const missing=await onRequest({request,env:{}});assert.deepEqual(await missing.json(),{available:false});
+ const ready=await onRequest({request,env:{MARKETPLACE_DB:{},LISTING_IMAGES:{}}});assert.deepEqual(await ready.json(),{available:true});
+});

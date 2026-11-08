@@ -8,6 +8,9 @@ async function cf(path,body){const response=await fetch(`https://api.cloudflare.
 const project=await cf(`pages/projects/${projectName}`),db=project.deployment_configs?.preview?.d1_databases?.MARKETPLACE_DB?.id;
 if(!db||Object.values(project.deployment_configs?.production?.d1_databases||{}).some(value=>value.id===db)||project.production_branch===branchName)throw Error('Banco de prévia não isolado. Teste bloqueado.');
 console.log('Fotos da prévia: '+(project.deployment_configs?.preview?.r2_buckets?.LISTING_IMAGES?'armazenamento configurado.':'armazenamento ainda não configurado; upload online pendente.'));
+const mediaStatus=await fetch(origin+'/api/media-upload',{signal:AbortSignal.timeout(15000)});
+assert.equal(mediaStatus.status,200,'Disponibilidade de fotos não respondeu.');
+assert.equal((await mediaStatus.json()).available,!!project.deployment_configs?.preview?.r2_buckets?.LISTING_IMAGES,'A configuração das fotos não corresponde ao ambiente de prévia.');
 const databases=await cf(`d1/database?name=${databaseName}`);if(!databases.some(value=>value.uuid===db&&value.name===databaseName))throw Error('Banco inesperado.');
 const query=async(sql,params=[])=>cf(`d1/database/${db}/query`,{sql,params});
 const prefix=`preview-${randomBytes(12).toString('hex')}`,emails=[`${prefix}-a@example.invalid`,`${prefix}-b@example.invalid`],password=randomBytes(6).toString('base64url');

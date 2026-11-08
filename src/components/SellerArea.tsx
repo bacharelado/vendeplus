@@ -36,6 +36,8 @@ async function preparePhoto(file:File):Promise<Blob>{
 }
 export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:{draft?:Draft;admin?:boolean;initialPhoto?:File|null;startNew?:boolean}){
  const [selectedPhoto,setSelectedPhoto]=useState<File|null>(initialPhoto);
+ const [photoAvailable,setPhotoAvailable]=useState<boolean>();
+ useEffect(()=>{let active=true;fetch('/api/media-upload',{cache:'no-store',signal:AbortSignal.timeout(8000)}).then(async response=>{const value=await response.json();if(active)setPhotoAvailable(response.ok&&value.available===true)}).catch(()=>{if(active)setPhotoAvailable(false)});return ()=>{active=false}},[]);
  const [account,setAccount]=useState<Account|null>(null),[loading,setLoading]=useState(true),[register,setRegister]=useState(location.hash==='#cadastro');
  const [offers,setOffers]=useState<Offer[]>([]),[reports,setReports]=useState<Report[]>([]),[stats,setStats]=useState<Stats|null>(null);
  const [sellers,setSellers]=useState<AdminSeller[]>([]),[allListings,setAllListings]=useState<AdminListing[]>([]);
@@ -65,13 +67,14 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
   event.preventDefault();
   const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
   const photo=selectedPhoto;
+  if(photo&&photoAvailable===undefined){setError('Aguarde um instante enquanto verificamos o envio da foto.');return}
   const price=parseBRL(data.price,category==='Serviços');if(!price.ok){setError(price.error);return}
   void execute(async()=>{
    const payload={...data,priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
    const result=await api(editing?'listings/'+editing.id:'listings',editing?'PATCH':'POST',payload);
    const id=editing?.id||Number(result.id);
-   let photoNotice='';
-   if(photo&&photo.size){
+   let photoNotice=photo&&photoAvailable===false?' O anúncio foi salvo sem foto porque o envio de imagens está indisponível.':'';
+   if(photo&&photo.size&&photoAvailable){
     try{
      const image=await preparePhoto(photo);
      const response=await fetch('/api/media-upload?listingId='+id,{method:'POST',headers:{'Content-Type':image.type},body:image,credentials:'same-origin',signal:AbortSignal.timeout(30000)});
@@ -120,7 +123,7 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
     <div className="account-toolbar"><button className="button primary" disabled={busy} onClick={()=>{setEditing(null);setCategory('Alimentação');setShowForm(v=>!v)}}>{showForm?'Fechar formulário':'Publicar novo anúncio'}</button><a className="button outline" href={'#vendedor-'+account.id}>Meu perfil público</a>{account.role==='admin'&&<a className="button outline" href="#admin">Administração</a>}</div>
     {showForm&&<form className="draft-form panel" onSubmit={submit} key={editing?.id||requestId}>
      <h2>{editing?'Editar anúncio':'Publicar anúncio'}</h2>
-     <PhotoPicker onFile={setSelectedPhoto} initialPhoto={selectedPhoto}/>
+     <PhotoPicker onFile={setSelectedPhoto} initialPhoto={selectedPhoto} storageAvailable={photoAvailable}/>
      <label>O que você está vendendo?<input name="title" placeholder="Ex.: Mesa de madeira com 4 cadeiras" required minLength={5} maxLength={90} defaultValue={editing?.title||draft?.title}/></label>
      <div className="form-row"><label>Categoria<select name="category" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></label><label>Condição<select name="condition" defaultValue={editing?.condition||draft?.condition||'Novo'}><option>Novo</option><option>Usado</option><option>Não aplicável</option></select></label></div>
      <label>Preço em reais<input name="price" placeholder="Ex.: 25,00" inputMode="decimal" maxLength={20} defaultValue={editing?.priceCents?((editing.priceCents/100).toFixed(2).replace('.',',')):draft?.priceCents?((draft.priceCents/100).toFixed(2).replace('.',',')):''}/><span className="field-help">Serviços podem ser sob orçamento.</span></label>
