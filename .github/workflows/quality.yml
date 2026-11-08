@@ -1,0 +1,29 @@
+name: VENDE+ — Qualidade
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci
+      - name: Testes unitários
+        run: npm test
+      - name: Verificar esquema SQL
+        run: python3 tests/schema_test.py
+      - name: Compilar para produção
+        run: npm run build
+

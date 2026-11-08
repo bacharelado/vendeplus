@@ -1,4 +1,3 @@
-/** Converte preços BRL digitados para centavos, sem ponto flutuante na representação final. */
 export function parseBRL(raw, isService = false) {
   const text = String(raw ?? '').trim();
   if (!text) return isService ? {ok:true, cents:null} : {ok:false, error:'Informe o preço.'};
@@ -23,3 +22,4 @@ export function classifyContent(text) {
   if (/pagamento antecipado|pagamento adiantado|pix antes/.test(normalized)) return 'EM_ANALISE';
   return 'PUBLICADO';
 }
+

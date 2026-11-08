@@ -1,67 +1,42 @@
-# VENDE+ — Fundação do Software (Fase 1)
+# VENDE+ 2.0 — APOCALYPTIC
 
-**APOCALYPTIC · piloto Poranga II, Itacoatiara-AM**
+Marketplace hiperlocal em desenvolvimento para Poranga I, Poranga II e Jacarezinho, Itacoatiara-AM.
 
-Este pacote é o **código-fonte de uma demonstração local em React + Vite + TypeScript**. Todas as pessoas, produtos e indicadores são fictícios. Nenhum dado persiste ao recarregar. Não há autenticação, servidor de aplicação, banco, pagamento, WhatsApp real ou painel administrativo protegido.
+## Situação
 
-## Abrir no Windows 10
+A branch feat/vendeplus-2.0 concentra a reformulação. A main e a produção não devem ser alteradas sem testes e autorização.
 
-1. Instale **Node.js 22.12+** (ou versão 20.19+) e confirme no Prompt de Comando:
-   ```bat
-   node -v
-   npm -v
-   ```
-2. Extraia este ZIP para uma pasta, por exemplo `C:\Users\helio\Desktop\vendeplus-fase1`.
-3. No terminal aberto **dentro da pasta do projeto**, execute:
-   ```bat
-   npm install
-   npm run dev
-   ```
-4. Abra **http://localhost:5173**.
+Em código: contas e sessões, catálogo D1, publicação automática de ofertas comuns, retenção simples de ofertas suspeitas, edição de anúncios próprios, perfil público, filtros por bairro, denúncias, indicadores administrativos e fotos opcionais via R2.
 
-Alternativa: dê dois cliques em `scripts\iniciar-windows.bat` após extrair a pasta. O `npm install` exige conexão com a internet, mas os pacotes são gratuitos.
+Regras simples de moderação não garantem identificar golpes. O VENDE+ não intermedeia pagamentos.
 
-### Outros comandos
-```bat
-npm run test
-npm run typecheck
+IA está desativada. O botão Anunciar abre o fluxo de publicação diretamente; os campos têm exemplos e textos simples. O catálogo permite carregar mais anúncios e consultar um anúncio antigo pelo próprio ID.
+
+## Instalação
+
+Node.js >= 22.12, Git e npm. Clone a branch feat/vendeplus-2.0 do repositório bacharelado/vendeplus, execute npm ci e npm run dev.
+
+O Vite local não executa Pages Functions; para APIs completas use a prévia Cloudflare com bindings de teste.
+
+## Cloudflare e banco de dados
+
+MARKETPLACE_DB está configurado para o banco D1 vendeplus-preview somente no ambiente de prévia. Migrações 0001, 0002 e 0003 são incrementais; o workflow da branch 2.0 confere que a produção não muda.
+
+LISTING_IMAGES é o binding R2 opcional. Crie um bucket separado para prévia e associe o binding ao ambiente Preview em Workers & Pages > projeto VENDE+ > Settings > Bindings > Add > R2 bucket. Faça redeploy. Sem R2, anúncios sem foto funcionam e upload retorna 503.
+
+As fotos são convertidas pelo navegador para PNG, limitadas a 3 MB e 1280 pixels por dimensão. O servidor decodifica e reescreve a imagem, limita a conta a 10 tentativas em 15 minutos e limpa arquivos substituídos sem referências. Fotos continuam acessíveis apenas enquanto o anúncio estiver publicado. Falhas de limpeza são informadas; objetos órfãos históricos ainda precisam de revisão.
+
+## Segurança
+
+A conta admin é promovida fora do cadastro público. APIs exigem sessão, autorização do proprietário e verificação no servidor. Vendedores suspensos não têm sessão ativa e seus anúncios deixam de ser exibidos. Há limites de tentativas e de publicação no D1.
+
+Pendências para operação real: recuperação de senha, verificação automática do contato, política de privacidade, testes de carga, monitoramento de abuso e contestação de denúncias.
+
+## Testes
+
+npm test
+python3 tests/schema_test.py
 npm run build
-```
+npm run test:e2e
 
-`npm run build` gera uma versão estática em `dist/`; isso **não autoriza** publicar para clientes reais.
-
-## Organização
-```
-src/
-  components/ListingCard.tsx   cartão reutilizável
-  data/mock.ts                anúncios e tipos fictícios
-  lib/pricing.mjs             preço e filtros simples de demonstração
-  lib/pricing.d.mts           tipagem do módulo JS
-  styles/app.css              identidade visual
-  App.tsx                     telas e navegação com hash
-  main.tsx                    ponto de entrada
-referencia/prototipo-v1.3.html  artefato de Claude preservado
-scripts/iniciar-windows.bat     atalho opcional
-```
-
-## Limitações importantes
-- Os filtros de palavras e estados são **apenas demonstrações de interface**; podem falhar e não são controles ant fraude.
-- A navegação "Ver como: Admin" é livre justamente por se tratar de demo; não a use em produção.
-- Não insira dados pessoais reais nesta aplicação.
-- Nenhuma senha, API key, token ou número real de vendedor deve ser inserido no código.
-- O nome **VENDE+** é de trabalho e pode ter conflitos marcários; verificar antes de divulgação comercial.
-- Na Fase 2, operações sensíveis passarão por funções de servidor e RLS, com revisão de LGPD e testes.
-
-## Verificação nesta entrega
-- `npm run test` executa testes locais de preços e classificação por Node.
-- Esta entrega foi gerada em ambiente isolado sem acesso ao registro do npm. Portanto a instalação das dependências, build Vite e a interface React devem ser validadas no seu PC após o `npm install`.
-
-## Decisões vigentes
-D1: confirmação manual do WhatsApp de vendedores; D2: regulamento v0.1 como base, revisão jurídica antes do público; D3: vínculo declarado com Poranga II; D4: orçamento R$ 0, nenhuma assinatura; D5: VENDE+ nome de trabalho, investigação da marca pendente.
-
-## Próximas etapas (ainda não implementadas)
-1. Validar instalação e compilação no Windows.
-2. Migrar/modularizar toda a funcionalidade do protótipo v1.3, com testes de UI.
-3. Planejar e implementar autenticação real, autorização e banco Supabase (plano gratuito) em ambiente isolado.
-4. Criar upload seguro de imagens, denúncias com evidências, auditoria e moderação verificável no servidor.
-5. Validar com moradores/comerciantes; revisar questões legais e custos antes de qualquer lançamento real.
+Os testes remotos nunca devem publicar ofertas de demonstração no catálogo; contas temporárias e seus anúncios retidos são removidos após os testes.
