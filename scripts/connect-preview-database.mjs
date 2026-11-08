@@ -3,7 +3,7 @@ import {pathToFileURL} from 'node:url';
 
 export const accountId='3466eb459952187515061f97996a9a17';
 export const projectName='vendeplus';
-export const branchName='feat/ux-compra-venda-v2';
+export const branchName='feat/vendeplus-2.0';
 export const databaseName='vendeplus-preview';
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const canonical=value=>JSON.stringify(value,(_,entry)=>entry&&typeof entry==='object'&&!Array.isArray(entry)?Object.fromEntries(Object.entries(entry).sort(([a],[b])=>a.localeCompare(b))):entry);

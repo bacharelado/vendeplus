@@ -1,7 +1,7 @@
 name: VENDE+ — Conectar banco da prévia
 on:
   push:
-    branches: [feat/ux-compra-venda-v2]
+    branches: [feat/vendeplus-2.0]
     paths:
       - .github/workflows/database-preview.yml
       - scripts/connect-preview-database.mjs
@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   conectar:
-    if: github.ref == 'refs/heads/feat/ux-compra-venda-v2'
+    if: github.ref == 'refs/heads/feat/vendeplus-2.0'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
