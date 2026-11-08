@@ -45,7 +45,7 @@
 .app:not(.dark) .buyer-home .category:hover{border-color:var(--category-ink)}
 .app:not(.dark) .buyer-home .section-heading h2{color:#293d67}
 .app:not(.dark) .buyer-home .category-section h2{border-left:4px solid #a078c9;padding-left:12px}
-.app:not(.dark) .buyer-home .buyer-offers h2{border-left:4px solid #4385c9;padding-left:12px}
+.app:not(.dark) .buyer-home .buyer-offers>.section-heading h2{border-left:4px solid #4385c9;padding-left:12px}
 .app:not(.dark) .empty-state{background:linear-gradient(140deg,#fff,#f0f4ff);border-color:#dce4f7}
 .app:not(.dark) .empty-icon{background:#e1eaff;color:#355c9e}
 .app:not(.dark) .listing-category{color:#62429c;background:#f0e8ff;padding:4px 8px;border-radius:7px;align-self:flex-start}
