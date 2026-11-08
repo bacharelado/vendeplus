@@ -127,7 +127,7 @@ export async function handleAccount({request,env}:Context){
   }
   if(path==='/admin/reports'&&request.method==='GET'){
     if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
-    const queue=await db.prepare("SELECT r.id,r.listing_id AS listingId,r.reason,r.details,r.created_at AS createdAt,l.title,l.status AS listingStatus FROM marketplace_reports r JOIN marketplace_listings l ON l.id=r.listing_id WHERE r.status='open' ORDER BY r.created_at DESC LIMIT 100").all();
+    const queue=await db.prepare("SELECT r.id,r.listing_id AS listingId,r.reason,r.details,r.created_at AS createdAt,l.title,l.seller_id AS sellerId,l.status AS listingStatus FROM marketplace_reports r JOIN marketplace_listings l ON l.id=r.listing_id WHERE r.status='open' ORDER BY r.created_at DESC LIMIT 100").all();
     return reply({reports:queue.results});
   }
   const reportReview=/^\/admin\/reports\/(\d+)$/.exec(path);

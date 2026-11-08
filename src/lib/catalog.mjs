@@ -10,7 +10,7 @@ export function filterListings(listings, filters = {}) {
     .sort((a, b) => {
       if (sortOrder === 'menor') return (a.priceCents ?? Number.MAX_SAFE_INTEGER) - (b.priceCents ?? Number.MAX_SAFE_INTEGER);
       if (sortOrder === 'maior') return (b.priceCents ?? -1) - (a.priceCents ?? -1);
-      return b.createdAt - a.createdAt || b.id - a.id;
+      return (b.createdAt ?? b.id) - (a.createdAt ?? a.id) || b.id - a.id;
     });
 }
 

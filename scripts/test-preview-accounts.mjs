@@ -20,7 +20,7 @@ try{
  assert.equal((await api('session')).data.account,null);
  const a=await api('register','POST',create(emails[0]));assert.equal(a.status,201,'Cadastro A falhou.');assert(a.cookie);assert.equal(a.data.account.role,'seller');assert.equal(a.data.account.status,'pending');
  const b=await api('register','POST',create(emails[1]));assert.equal(b.status,201,'Cadastro B falhou.');
- const input={requestId:randomUUID(),title:'Verificação privada de integração',description:'Dado temporário para conferir permissões e revisão.',priceCents:100,category:'Casa',condition:'Novo',fulfillment:'Sem oferta comercial: teste privado a remover.',neighborhood:'Poranga II'};
+ const input={requestId:randomUUID(),title:'Documentos falsos para revisão privada',description:'Dado temporário para conferir permissões e revisão.',priceCents:100,category:'Casa',condition:'Novo',fulfillment:'Sem oferta comercial: teste privado a remover.',neighborhood:'Poranga II'};
  const sent=await api('listings','POST',input,a.cookie);assert.equal(sent.status,201,'Envio ao D1 falhou.');assert.equal(sent.data.status,'pending');
  assert.equal((await api('listings','POST',input,a.cookie)).data.id,sent.data.id);
  assert.equal((await api('listings','GET',undefined,a.cookie)).data.listings.length,1);assert.equal((await api('listings','GET',undefined,b.cookie)).data.listings.length,0);
@@ -35,7 +35,7 @@ try{
   const rows=await query('SELECT id FROM marketplace_accounts WHERE email=?',[email]);
   for(const {id} of rows[0]?.results||[]){
    const published=await query("SELECT count(*) AS total FROM marketplace_listings WHERE seller_id=? AND status='published'",[id]);if(published[0]?.results?.[0]?.total)throw Error('Limpeza bloqueada: a conta temporária possui conteúdo publicado.');
-   await query('DELETE FROM marketplace_listing_details WHERE seller_id=?',[id]);await query('DELETE FROM marketplace_listings WHERE seller_id=?',[id]);await query('DELETE FROM marketplace_sessions WHERE account_id=?',[id]);await query('DELETE FROM marketplace_accounts WHERE id=? AND email=?',[id,email]);await query('DELETE FROM marketplace_sellers WHERE id=?',[id]);
+   await query('DELETE FROM marketplace_listing_events WHERE seller_id=?',[id]);await query('DELETE FROM marketplace_listing_details WHERE seller_id=?',[id]);await query('DELETE FROM marketplace_listings WHERE seller_id=?',[id]);await query('DELETE FROM marketplace_sessions WHERE account_id=?',[id]);await query('DELETE FROM marketplace_accounts WHERE id=? AND email=?',[id,email]);await query('DELETE FROM marketplace_sellers WHERE id=?',[id]);
   }
  }
  console.log('Contas e anúncios temporários removidos do banco exclusivo da prévia.');

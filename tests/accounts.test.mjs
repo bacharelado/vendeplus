@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
 import {handleAccount,passwordHash,passwordMatches} from '../functions/_shared/account.ts';
 import {catalogQuery} from '../functions/_shared/catalog-query.ts';
-const migrations=(await Promise.all(['0001_marketplace','0002_accounts'].map(name=>readFile(new URL('../migrations/'+name+'.sql',import.meta.url),'utf8')))).join('\n');
+const migrations=(await Promise.all(['0001_marketplace','0002_accounts','0003_vendeplus_2'].map(name=>readFile(new URL('../migrations/'+name+'.sql',import.meta.url),'utf8')))).join('\n');
 function harness(){
  const sqlite=new DatabaseSync(':memory:');sqlite.exec(migrations);sqlite.exec(migrations);
  const db={prepare(sql){let values=[];const stmt={bind(...args){values=args;return stmt},async first(){return sqlite.prepare(sql).get(...values)||null},async all(){return {results:sqlite.prepare(sql).all(...values)}},async run(){return {meta:sqlite.prepare(sql).run(...values)}}};return stmt},async batch(statements){sqlite.exec('BEGIN');try{const result=[];for(const stmt of statements)result.push(await stmt.run());sqlite.exec('COMMIT');return result}catch(error){sqlite.exec('ROLLBACK');throw error}}};
@@ -31,18 +31,18 @@ test('CSRF, formato e corpo excessivo são bloqueados antes de gravar',async()=>
  const h=harness();for(const [headers,status] of [[{Origin:'https://evil.test'},403],[{Origin:''},403],[{'Content-Type':'text/plain'},415],[{'Content-Length':'20000'},413]])assert.equal((await h.request('register','POST',registration(),'',headers)).status,status);
  assert.equal((await h.request('register','POST',{...registration(),name:'x'.repeat(20000)})).status,413);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM marketplace_accounts').get().n,0);
 });
-test('envio exige sessão, salva pendente, é idempotente e isola vendedores',async()=>{
+test('envio exige sessão, publica automaticamente, é idempotente e isola vendedores',async()=>{
  const h=harness();assert.equal((await h.request('listings','POST',offer())).status,401);
  const owner=await h.request('register','POST',registration()),other=await h.request('register','POST',registration('other@example.invalid')),data=offer();
- const created=await h.request('listings','POST',data,owner.cookie);assert.equal(created.status,201);assert.equal(created.body.status,'pending');const repeated=await h.request('listings','POST',data,owner.cookie);assert.equal(repeated.body.id,created.body.id);
- assert.equal((await h.request('listings','GET',undefined,owner.cookie)).body.listings.length,1);assert.equal((await h.request('listings','GET',undefined,other.cookie)).body.listings.length,0);assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
- assert.equal((await h.request('listings/'+created.body.id,'PATCH',{status:'removed'},other.cookie)).status,404);assert.equal((await h.request('listings/'+created.body.id,'PATCH',{status:'published'},owner.cookie)).status,400);
+ const created=await h.request('listings','POST',data,owner.cookie);assert.equal(created.status,201);assert.equal(created.body.status,'published');const repeated=await h.request('listings','POST',data,owner.cookie);assert.equal(repeated.body.id,created.body.id);
+ assert.equal((await h.request('listings','GET',undefined,owner.cookie)).body.listings.length,1);assert.equal((await h.request('listings','GET',undefined,other.cookie)).body.listings.length,0);assert.equal(h.sqlite.prepare(catalogQuery).all().length,1);
+ assert.equal((await h.request('listings/'+created.body.id,'PATCH',{status:'removed'},other.cookie)).status,404);assert.equal((await h.request('listings/'+created.body.id,'PATCH',{status:'published'},owner.cookie)).status,409);
  assert.equal((await h.request('moderation')).status,401);assert.equal((await h.request('moderation','GET',undefined,owner.cookie)).status,403);assert.equal((await h.request('moderation/'+created.body.id,'POST',{status:'published'},owner.cookie)).status,403);
 });
 test('somente admin revisa vendedor e anúncio, deixando trilha no banco',async()=>{
  const h=harness(),owner=await h.request('register','POST',registration()),admin=await h.request('register','POST',registration('admin@example.invalid'));
  h.sqlite.prepare("UPDATE marketplace_accounts SET role='admin' WHERE id=?").run(admin.body.account.id);
- const created=await h.request('listings','POST',offer(),owner.cookie),id=created.body.id;
+ const created=await h.request('listings','POST',{...offer(),title:'Documentos falsos para revisão'},owner.cookie),id=created.body.id;assert.equal(created.body.status,'pending');
  assert.equal((await h.request(`moderation/${id}`,'POST',{status:'published'},admin.cookie)).status,409);
  assert.equal((await h.request(`moderation/${id}/seller`,'POST',{},admin.cookie)).status,400);
  assert.equal((await h.request(`moderation/${id}/seller`,'POST',{confirmContact:true},admin.cookie)).status,200);
@@ -75,4 +75,26 @@ test('cadastro e login aceitam senha de oito caracteres, preservando hash e sess
 test('API normaliza telefone formatado e rejeita texto inválido',async()=>{
  const h=harness();assert.equal((await h.request('register','POST',{...registration(),whatsapp:'telefone inválido'})).status,400);
  const result=await h.request('register','POST',{...registration(),whatsapp:'+55 (92) 00000-0000'});assert.equal(result.status,201);assert.equal(result.body.account.whatsapp,'5592000000000');assert.equal(h.sqlite.prepare('SELECT whatsapp FROM marketplace_sellers').get().whatsapp,'5592000000000');
+});
+
+test('edição exige propriedade, altera dados e preserva publicação legítima',async()=>{
+ const h=harness(),a=await h.request('register','POST',registration()),b=await h.request('register','POST',registration('else@example.invalid'));
+ const created=await h.request('listings','POST',offer(),a.cookie),id=created.body.id;
+ const changed={...offer(),action:'edit',title:'Oferta revisada legitimamente',description:'Descrição atualizada pelo anunciante.'};
+ assert.equal((await h.request('listings/'+id,'PATCH',changed,b.cookie)).status,404);
+ assert.equal((await h.request('listings/'+id,'PATCH',changed,a.cookie)).status,200);
+ assert.equal(h.sqlite.prepare('SELECT title FROM marketplace_listings WHERE id=?').get(id).title,'Oferta revisada legitimamente');
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,1);
+ assert.equal((await h.request('listings/'+id,'PATCH',{status:'paused'},a.cookie)).status,200);
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
+ assert.equal((await h.request('listings/'+id,'PATCH',{status:'published'},a.cookie)).status,200);
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,1);
+});
+
+test('perfil do vendedor pode ser atualizado sem elevar permissões',async()=>{
+ const h=harness(),a=await h.request('register','POST',registration());
+ assert.equal((await h.request('profile','PATCH',{name:'Loja do Bairro',bio:'Produtos locais e atendimento no bairro.'},a.cookie)).status,200);
+ const p=await h.request('profile','GET',undefined,a.cookie);
+ assert.equal(p.body.profile.name,'Loja do Bairro');assert.match(p.body.profile.bio,/Produtos locais/);
+ assert.equal((await h.request('admin/stats','GET',undefined,a.cookie)).status,403);
 });

@@ -10,19 +10,20 @@ class MarketplaceSchemaTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(':memory:')
         self.db.row_factory = sqlite3.Row
-        self.db.executescript((ROOT / 'migrations/0001_marketplace.sql').read_text())
+        for file in ['0001_marketplace.sql', '0002_accounts.sql', '0003_vendeplus_2.sql']:
+            self.db.executescript((ROOT / 'migrations' / file).read_text())
         for identity, status in [('approved', 'approved'), ('pending', 'pending'), ('suspended', 'suspended')]:
             self.db.execute('INSERT INTO marketplace_sellers(id,display_name,status) VALUES(?,?,?)', (identity, 'Anunciante de teste', status))
 
     def listing(self, seller='approved', status='published', price=1000, category='Casa', title='Produto para teste'):
         self.db.execute('INSERT INTO marketplace_listings(seller_id,title,description,price_cents,category,condition,fulfillment,status) VALUES(?,?,?,?,?,?,?,?)', (seller, title, 'Descrição de teste com detalhes', price, category, 'Usado', 'A combinar', status))
 
-    def test_catalogo_so_expoe_publicados_de_vendedores_aprovados(self):
+    def test_catalogo_so_expoe_publicados_de_vendedores_nao_suspensos(self):
         for seller in ['approved', 'pending', 'suspended']:
             for status in ['pending', 'published', 'paused', 'sold', 'rejected', 'removed']:
                 self.listing(seller, status)
         records = self.db.execute(QUERY).fetchall()
-        self.assertEqual(len(records), 1)
+        self.assertEqual(len(records), 2)
         self.assertEqual(records[0]['status'], 'PUBLICADO')
 
     def test_rejeita_precos_invalidos_e_produto_sem_preco(self):
