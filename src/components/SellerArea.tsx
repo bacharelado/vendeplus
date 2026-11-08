@@ -52,7 +52,7 @@ export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
   const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
   const whatsapp=normalizeWhatsapp(data.whatsapp);
   if(register&&!whatsapp){setError('Informe um WhatsApp brasileiro com DDD.');return}
-  void execute(async()=>{const value=await api(register?'register':'login','POST',{...data,...(register?{whatsapp}:{}),acceptContact:data.acceptContact==='on'});form.reset();setAccount(value.account);setNotice(register?'Conta criada. Você já pode anunciar. Seu contato ainda não foi verificado.':'Você entrou na sua conta.')});
+  void execute(async()=>{const value=await api(register?'register':'login','POST',{...data,...(register?{whatsapp}:{}),acceptContact:data.acceptContact==='on'});form.reset();setAccount(value.account);setRegister(false);setNotice(register?'Conta criada. Você já pode anunciar. Seu contato ainda não foi verificado.':'Você entrou na sua conta.')});
  };
  const submit=(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
@@ -93,7 +93,7 @@ export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
     <button className="button primary" disabled={busy} type="submit">{busy?'Aguarde…':register?'Criar conta':'Entrar'}</button>
     <button type="button" className="button outline" disabled={busy} onClick={()=>{setRegister(!register);setError('')}}>{register?'Já tenho conta':'Criar conta'}</button>
    </form>:<>
-   <div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setOffers([]);setNotice('Você saiu da conta.')})}>Sair</button></div>
+   <div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setRegister(false);setOffers([]);setNotice('Você saiu da conta.')})}>Sair</button></div>
    <form className="panel password-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,data=new FormData(form);void execute(async()=>{await api('password','POST',{oldPassword:String(data.get('oldPassword')||''),newPassword:String(data.get('newPassword')||'')});form.reset();setNotice('Senha alterada e outras sessões encerradas.')})}}>
      <details><summary>Segurança da conta — alterar minha senha</summary><div className="password-fields"><label>Senha atual<input type="password" name="oldPassword" required minLength={8} maxLength={128} autoComplete="current-password"/></label><label>Nova senha<input type="password" name="newPassword" required minLength={8} maxLength={128} autoComplete="new-password"/></label><button className="button outline" disabled={busy}>Alterar senha</button></div></details>
    </form>
