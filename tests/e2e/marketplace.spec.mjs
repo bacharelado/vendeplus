@@ -15,11 +15,14 @@ async function fillDraft(page,title='Produto para teste'){
 test('vitrine pública não contém avisos de demonstração nem anúncios inventados',async({page},info)=>{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await catalog(page);await page.goto('/');
-  await expect(page.getByRole('heading',{name:/O que você procura/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/Encontre o que você precisa/})).toBeVisible();
   await expect(page.locator('.listing-card')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(/demonstração|simulação|fictício|Vendedor de demonstração/i);
-  await expect(page.getByRole('heading',{name:'O bairro tem muito a oferecer'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
   await expect(page.locator('.demo-banner')).toHaveCount(0);
+  await expect(page.locator('header').getByRole('link',{name:/Anunciar|Minha conta|Meus rascunhos/})).toHaveCount(0);
+  await expect(page.locator('main').getByRole('link',{name:/Anunciar|Preparar.*anúncio/i})).toHaveCount(0);
+  await expect(page.locator('footer').getByRole('link',{name:'Área de quem anuncia',exact:true})).toHaveAttribute('href','#conta');
   await page.screenshot({path:info.outputPath('vitrine.png'),fullPage:true});expect(errors).toEqual([]);
 });
 
@@ -65,7 +68,7 @@ test('rascunho persiste após recarregar e não vira oferta pública',async({pag
   await expect(page.locator('.draft-card')).toContainText('Produto para teste');
   await page.reload();await expect(page.locator('.draft-card')).toContainText('Produto para teste');
   await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);
-  await expect(page.getByRole('heading',{name:'O bairro tem muito a oferecer'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
 });
 
 test('rascunho pode ser editado e atualização é salva',async({page})=>{
@@ -176,7 +179,7 @@ test('conta publica anúncio e encerra sessão',async({page})=>{
 
 test('retorno ao catálogo atualiza ofertas retiradas no servidor',async({page})=>{
  await catalog(page);let available=true;await page.route('**/api/listings**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:available?items:[]})}));
- await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(2);await page.goto('/#conta');await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();available=false;await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);await expect(page.getByRole('heading',{name:'O bairro tem muito a oferecer'})).toBeVisible();
+ await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(2);await page.goto('/#conta');await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();available=false;await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
 });
 
 test('escolher foto não chama IA nem altera os campos',async({page})=>{
