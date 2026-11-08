@@ -8,6 +8,7 @@ on:
       - 'migrations/*.sql'
       - 'functions/**'
       - scripts/test-preview-accounts.mjs
+      - tests/preview-database.test.mjs
   workflow_dispatch:
 permissions:
   contents: read
