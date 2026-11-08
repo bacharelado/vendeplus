@@ -98,3 +98,30 @@ test('perfil do vendedor pode ser atualizado sem elevar permissões',async()=>{
  assert.equal(p.body.profile.name,'Loja do Bairro');assert.match(p.body.profile.bio,/Produtos locais/);
  assert.equal((await h.request('admin/stats','GET',undefined,a.cookie)).status,403);
 });
+
+test('admin pode retirar anúncios e suspender contas, mas vendedor comum não',async()=>{
+ const h=harness(),admin=await h.request('register','POST',registration('leader@example.invalid')),owner=await h.request('register','POST',registration('seller@example.invalid'));
+ const created=await h.request('listings','POST',offer(),owner.cookie);assert.equal(created.status,201);
+ h.sqlite.prepare("UPDATE marketplace_accounts SET role='admin' WHERE id=?").run(admin.body.account.id);
+ assert.equal((await h.request('admin/listings','GET',undefined,owner.cookie)).status,403);
+ assert.equal((await h.request('admin/sellers','GET',undefined,owner.cookie)).status,403);
+ const dashboard=await h.request('admin/stats','GET',undefined,admin.cookie);assert.equal(dashboard.status,200);assert.equal(dashboard.body.published,1);
+ assert.equal((await h.request('admin/listings','GET',undefined,admin.cookie)).body.listings.length,1);
+ assert.equal((await h.request('admin/sellers','GET',undefined,admin.cookie)).body.sellers.length,2);
+ assert.equal((await h.request('admin/sellers/'+admin.body.account.id,'POST',{status:'suspended'},admin.cookie)).status,409);
+ assert.equal((await h.request('admin/sellers/'+owner.body.account.id,'POST',{status:'suspended'},admin.cookie)).status,200);
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
+ assert.equal((await h.request('session','GET',undefined,owner.cookie)).body.account,null);
+ assert.equal((await h.request('admin/sellers/'+owner.body.account.id,'POST',{status:'approved'},admin.cookie)).status,200);
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,1);
+ assert.equal((await h.request('admin/listings/'+created.body.id,'POST',{status:'removed'},admin.cookie)).status,200);
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
+});
+test('troca de senha exige senha atual e revoga sessões antigas',async()=>{
+ const h=harness(),a=await h.request('register','POST',registration()),login=await h.request('login','POST',registration());
+ assert.equal((await h.request('password','POST',{oldPassword:'incorreta mesmo',newPassword:'NovaSenha#2026'},a.cookie)).status,401);
+ assert.equal((await h.request('password','POST',{oldPassword:registration().password,newPassword:'NovaSenha#2026'},a.cookie)).status,200);
+ assert.equal((await h.request('session','GET',undefined,login.cookie)).body.account,null);
+ assert.equal((await h.request('login','POST',registration())).status,401);
+ assert.equal((await h.request('login','POST',{email:registration().email,password:'NovaSenha#2026'})).status,200);
+});
