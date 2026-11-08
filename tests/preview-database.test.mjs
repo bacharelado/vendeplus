@@ -104,7 +104,7 @@ test('deployment de produção nunca é repetido',async()=>{
 });
 
 test('build com erro não gera confirmação de conexão',async()=>{
-  const h=harness({failedBuild:true});await assert.rejects(h.run(),/não foi concluído com sucesso/);
+  const h=harness({failedBuild:true});await assert.rejects(h.run(),/A implantação da prévia falhou/);
   assert(!h.logs.some(log=>log.includes('API validada')));
 });
 
