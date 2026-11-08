@@ -17,3 +17,15 @@ export async function fetchCatalog(signal:AbortSignal):Promise<Listing[]>{
   if(!response.ok)throw new Error('Catálogo indisponível');
   return decodeListings(await response.json());
 }
+
+export async function fetchCatalogPage(signal:AbortSignal,before?:string):Promise<{listings:Listing[];nextCursor?:string}>{
+ const response=await fetch('/api/listings'+(before?'?before='+encodeURIComponent(before):''),{signal,headers:{Accept:'application/json'},cache:'no-store'});
+ if(!response.ok)throw new Error('Não foi possível carregar os anúncios.');
+ const value=await response.json();
+ return {listings:decodeListings(value),nextCursor:typeof value.nextCursor==='string'?value.nextCursor:undefined};
+}
+export async function fetchListing(id:number,signal:AbortSignal):Promise<Listing|undefined>{
+ const response=await fetch('/api/listings?id='+id,{signal,headers:{Accept:'application/json'},cache:'no-store'});
+ if(!response.ok)throw new Error('Não foi possível carregar o anúncio.');
+ return decodeListings(await response.json())[0];
+}

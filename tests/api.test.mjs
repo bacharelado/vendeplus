@@ -7,3 +7,17 @@ test('API pública rejeita escritas',async()=>{const result=await onRequest({req
 test('falha do banco não expõe detalhes internos',async()=>{const env={MARKETPLACE_DB:{prepare:()=>({all:()=>{throw Error('internal-secret')}})}};const result=await onRequest({request,env});assert.equal(result.status,503);assert.doesNotMatch(await result.text(),/internal-secret/)});
 test('API usa consulta restrita e só expõe campos públicos',async()=>{let query='';const env={MARKETPLACE_DB:{prepare:sql=>{query=sql;return {all:async()=>({success:true,results:[{id:1,title:'Produto de teste',description:'Descrição de teste',priceCents:2000,category:'Casa',condition:'Usado',seller:'Anunciante de teste',fulfillment:'A combinar',createdAt:1,contactWhatsapp:'javascript:bad',email:'private',auth_token:'secret'}]})}}}};const result=await onRequest({request,env});const value=await result.json();assert.equal(result.status,200);assert.match(query,/l.status='published' AND s.status!='suspended'/);assert.equal(value.listings[0].email,undefined);assert.equal(value.listings[0].auth_token,undefined);assert.equal(value.listings[0].contactWhatsapp,undefined);assert.equal(value.listings[0].status,'PUBLICADO')});
 test('API vazia responde lista vazia e HEAD não inclui corpo',async()=>{const env={MARKETPLACE_DB:{prepare:()=>({all:async()=>({success:true,results:[]})})}};const result=await onRequest({request,env});assert.deepEqual(await result.json(),{listings:[]});const head=await onRequest({request:new Request(request,{method:'HEAD'}),env});assert.equal(await head.text(),'')});
+
+test('link direto encontra anúncio fora da primeira página e não expõe pausados',async()=>{
+ const {database}=await import('./helpers/database.mjs');const h=database();
+ h.sqlite.exec("INSERT INTO marketplace_sellers(id,display_name,whatsapp,status) VALUES ('seller','Teste','5592999999999','approved')");
+ const insert=h.sqlite.prepare("INSERT INTO marketplace_listings(id,seller_id,title,description,price_cents,category,condition,fulfillment,status,created_at) VALUES (?,'seller','Mesa de teste','Descrição teste',1000,'Casa','Novo','Retirada',?,?)");
+ for(let i=1;i<=201;i++)insert.run(i,'published',i);
+ const env={MARKETPLACE_DB:h.db};
+ const first=await (await onRequest({request,env})).json();assert.equal(first.listings.length,200);assert.equal(first.nextCursor,'2:2');
+ const second=await (await onRequest({request:new Request(request.url+'?before='+first.nextCursor),env})).json();assert.equal(second.listings[0].id,1);assert.equal(second.listings.length,1);
+ const detail=await (await onRequest({request:new Request(request.url+'?id=1'),env})).json();assert.equal(detail.listings[0].id,1);
+ h.sqlite.exec("UPDATE marketplace_listings SET status='paused' WHERE id=1");
+ assert.deepEqual((await (await onRequest({request:new Request(request.url+'?id=1'),env})).json()).listings,[]);
+ assert.equal((await onRequest({request:new Request(request.url+'?before=invalid'),env})).status,400);
+});

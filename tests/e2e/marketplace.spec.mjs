@@ -3,13 +3,13 @@ const items=[
   {id:101,title:'Mesa de teste',description:'Mesa usada na verificação automatizada da interface.',priceCents:15000,category:'Casa',condition:'Usado',seller:'Anunciante de teste',fulfillment:'Retirada a combinar',status:'PUBLICADO',createdAt:1},
   {id:102,title:'Serviço de teste',description:'Serviço usado na verificação automatizada da interface.',priceCents:null,category:'Serviços',condition:'Não aplicável',seller:'Anunciante de teste',fulfillment:'Atendimento a combinar',status:'PUBLICADO',createdAt:2}
 ];
-async function catalog(page,listings=[]){await page.route('**/api/account/session',route=>route.fulfill({contentType:'application/json',body:'{"account":null}'}));await page.route('**/api/listings',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({listings})}))}
+async function catalog(page,listings=[]){await page.route('**/api/account/session',route=>route.fulfill({contentType:'application/json',body:'{"account":null}'}));await page.route('**/api/listings**',route=>{const id=new URL(route.request().url()).searchParams.get('id');return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({listings:id?listings.filter(item=>item.id===Number(id)):listings})})})}
 async function fillDraft(page,title='Produto para teste'){
   await page.goto('/#publicar');
-  await page.getByRole('textbox',{name:'Título do anúncio'}).fill(title);
+  await page.getByRole('textbox',{name:'O que você está vendendo?'}).fill(title);
   await page.getByRole('textbox',{name:'Preço em reais'}).fill('50,00');
-  await page.getByRole('textbox',{name:'Descrição',exact:true}).fill('Descrição completa usada apenas no teste automatizado.');
-  await page.getByRole('textbox',{name:'Atendimento ou entrega'}).fill('Retirada a combinar');
+  await page.getByRole('textbox',{name:'Conte sobre o produto',exact:true}).fill('Descrição completa usada apenas no teste automatizado.');
+  await page.getByRole('textbox',{name:'Como será a entrega?'}).fill('Retirada a combinar');
 }
 
 test('vitrine pública não contém avisos de demonstração nem anúncios inventados',async({page},info)=>{
@@ -25,9 +25,9 @@ test('vitrine pública não contém avisos de demonstração nem anúncios inven
 
 test('indisponibilidade da API é tratada sem catálogo fictício e permite tentar novamente',async({page})=>{
   let count=0;
-  await page.route('**/api/listings',route=>{count++;return route.fulfill({status:503,contentType:'application/json',body:'{"error":"CATALOG_UNAVAILABLE"}'})});
+  await page.route('**/api/listings**',route=>{count++;return route.fulfill({status:503,contentType:'application/json',body:'{"error":"CATALOG_UNAVAILABLE"}'})});
   await page.goto('/#catalogo');
-  await expect(page.getByRole('heading',{name:'Ofertas em preparação'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Não foi possível carregar os anúncios'})).toBeVisible();
   await page.getByRole('button',{name:'Tentar novamente'}).click();
   await expect.poll(()=>count).toBeGreaterThanOrEqual(2);
   await expect(page.locator('.listing-card')).toHaveCount(0);
@@ -72,7 +72,7 @@ test('rascunho pode ser editado e atualização é salva',async({page})=>{
   await catalog(page);await fillDraft(page);
   await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
   await page.getByRole('link',{name:'Editar',exact:true}).click();
-  await page.getByRole('textbox',{name:'Título do anúncio'}).fill('Produto atualizado no teste');
+  await page.getByRole('textbox',{name:'O que você está vendendo?'}).fill('Produto atualizado no teste');
   await page.getByRole('button',{name:'Salvar alterações',exact:true}).click();
   await page.reload();await expect(page.locator('.draft-card')).toContainText('Produto atualizado no teste');
   await expect(page.locator('.draft-card')).toHaveCount(1);
@@ -95,7 +95,7 @@ test('exclusão pede confirmação, modal controla foco e não reaparece após r
 test('espaços vazios, preço inválido e falha de armazenamento não produzem sucesso falso',async({page})=>{
   await catalog(page);await fillDraft(page,'     ');await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
   await expect(page.getByRole('alert')).toContainText('Espaços em branco não contam');
-  await page.getByRole('textbox',{name:'Título do anúncio'}).fill('Produto para teste');
+  await page.getByRole('textbox',{name:'O que você está vendendo?'}).fill('Produto para teste');
   await page.getByRole('textbox',{name:'Preço em reais'}).fill('-10');await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
   await expect(page.getByRole('alert')).toContainText('preço válido');
   await page.getByRole('textbox',{name:'Preço em reais'}).fill('50,00');
@@ -159,7 +159,7 @@ test('tema persiste e navegação mobile funciona',async({page},info)=>{
 
 test('cadastro informa erro da API sem sucesso falso',async({page})=>{
  await catalog(page);await page.route('**/api/account/register',route=>route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:route.request().postDataJSON().whatsapp==='5592000000000'?'E-mail já utilizado. Entre na sua conta.':'Telefone não foi normalizado.'})}));
- await page.goto('/#cadastro');await page.getByLabel('Nome público').fill('Conta de teste');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByLabel('WhatsApp',{exact:true}).fill('+55 (92) 00000-0000');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Criar conta',exact:true}).click();await expect(page.getByRole('alert')).toContainText('E-mail já utilizado');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
+ await page.goto('/#cadastro');await page.getByLabel('Seu nome').fill('Conta de teste');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByLabel('WhatsApp',{exact:true}).fill('+55 (92) 00000-0000');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Criar conta',exact:true}).click();await expect(page.getByRole('alert')).toContainText('E-mail já utilizado');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
 });
 
 test('conta publica anúncio e encerra sessão',async({page})=>{
@@ -168,28 +168,25 @@ test('conta publica anúncio e encerra sessão',async({page})=>{
  await page.route('**/api/account/listings',async route=>{if(route.request().method()==='POST'){sent=route.request().postDataJSON();offers=[{...sent,id:123,status:'published'}];return route.fulfill({status:201,contentType:'application/json',body:'{"id":123,"status":"published"}'})}return route.fulfill({contentType:'application/json',body:JSON.stringify({listings:offers})})});
  await page.route('**/api/account/profile',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({profile:{name:account.name,bio:''}})}));
  await page.route('**/api/account/logout',route=>route.fulfill({contentType:'application/json',body:'{"ok":true}'}));
- await page.goto('/#conta');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Sua área de vendedor.'})).toBeVisible();
- await page.getByRole('button',{name:'Publicar novo anúncio'}).click();await page.getByLabel('Título',{exact:true}).fill('Item de teste automatizado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Descrição',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Atendimento e entrega').fill('Retirada a combinar');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();await expect(page.locator('.account-offer')).toContainText('Publicado');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
+ await page.goto('/#conta');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Meus anúncios.'})).toBeVisible();
+ await page.getByRole('button',{name:'Publicar novo anúncio'}).click();await page.getByLabel('O que você está vendendo?',{exact:true}).fill('Item de teste automatizado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Conte sobre o produto',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Como será a entrega?').fill('Retirada a combinar');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();await expect(page.locator('.account-offer')).toContainText('Publicado');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
  await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
 });
 
 
 test('retorno ao catálogo atualiza ofertas retiradas no servidor',async({page})=>{
- await catalog(page);let available=true;await page.route('**/api/listings',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:available?items:[]})}));
+ await catalog(page);let available=true;await page.route('**/api/listings**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:available?items:[]})}));
  await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(2);await page.goto('/#conta');await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();available=false;await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);await expect(page.getByRole('heading',{name:'O bairro tem muito a oferecer'})).toBeVisible();
 });
 
-test('foto de produto preenche título, categoria e descrição sem inventar preço',async({page})=>{
- await catalog(page);
- await page.route('**/api/photo-analyze',route=>route.fulfill({
-   status:200,contentType:'application/json',
-   body:JSON.stringify({suggestion:{title:'Cadeira de madeira usada',description:'Cadeira com estrutura de madeira e encosto visível.',category:'Casa',needsReview:true,priceCents:null}})
- }));
- await page.goto('/#publicar');
+test('escolher foto não chama IA nem altera os campos',async({page})=>{
+ let calls=0;await catalog(page);
+ await page.route('**/api/photo-analyze',route=>{calls++;return route.fulfill({status:503,body:'{}'})});
+ await fillDraft(page,'Mesa anunciada manualmente');
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGOs6IliwAaYsIoOWgkAFekBbvxvoJ4AAAAASUVORK5CYII=','base64');
- await page.getByLabel('Foto para criar anúncio com IA').setInputFiles({name:'produto.png',mimeType:'image/png',buffer:png});
- await expect(page.getByRole('textbox',{name:'Título do anúncio'})).toHaveValue('Cadeira de madeira usada',{timeout:12000});
- await expect(page.getByRole('combobox',{name:'Categoria'})).toHaveValue('Casa');
- await expect(page.getByRole('textbox',{name:'Descrição',exact:true})).toHaveValue('Cadeira com estrutura de madeira e encosto visível.');
- await expect(page.getByRole('textbox',{name:'Preço em reais'})).toHaveValue('');
+ await page.getByLabel('Foto do produto (opcional)').setInputFiles({name:'produto.png',mimeType:'image/png',buffer:png});
+ await expect(page.getByAltText('Foto escolhida para o anúncio')).toBeVisible();
+ await expect(page.getByRole('textbox',{name:'O que você está vendendo?'})).toHaveValue('Mesa anunciada manualmente');
+ await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
+ await expect(page).toHaveURL(/#painel$/);expect(calls).toBe(0);
 });

@@ -12,15 +12,8 @@ test('não aceita JSON quebrado, categoria inexistente ou resultado incerto',()=
  assert.equal(photoSuggestion('{"uncertain":true}'),null);
  assert.equal(photoSuggestion('{"title":"Cadeira de madeira","category":"Outros","description":"Uma cadeira visível na foto."}'),null);
 });
-test('não chama IA sem credenciais, origem segura e JPEG válido',async()=>{
+test('IA fica desativada mesmo com serviço configurado',async()=>{
  let called=false;
- const env={MARKETPLACE_DB:{prepare:()=>({bind:()=>({first:async()=>null})})},AI:{run:async()=>{called=true;return {response:result}}}};
- const post=(headers,body)=>onRequest({request:new Request('https://preview.vendeplus.pages.dev/api/photo-analyze',{method:'POST',headers,body}),env});
- const invalid=await post({Origin:'https://preview.vendeplus.pages.dev','Content-Type':'text/plain'},'invalid');
- assert.equal(invalid.status,415);
- const unauthenticated=await post({Origin:'https://preview.vendeplus.pages.dev','Content-Type':'image/jpeg'},new Uint8Array(120).fill(255));
- assert.equal(unauthenticated.status,401);
- const csrf=await post({Origin:'https://attacker.test','Content-Type':'image/jpeg'},new Uint8Array(120).fill(255));
- assert.equal(csrf.status,403);
- assert.equal(called,false);
+ const response=await onRequest({request:new Request('https://preview.vendeplus.pages.dev/api/photo-analyze',{method:'POST',body:'foto'}),env:{AI:{run(){called=true}}}});
+ assert.equal(response.status,503);assert.match((await response.json()).error,/desativado/);assert.equal(called,false);
 });

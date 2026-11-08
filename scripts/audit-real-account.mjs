@@ -46,14 +46,14 @@ try{
  };
  const register=async(page,email,display)=>{
   await page.goto(origin+'/#cadastro',{waitUntil:'domcontentloaded'});
-  await page.getByLabel('Nome público').fill(display);
+  await page.getByLabel('Seu nome').fill(display);
   await page.getByLabel('E-mail',{exact:true}).fill(email);
   await page.getByLabel('Senha',{exact:true}).fill(password);
   await page.locator('select[name="neighborhood"]').selectOption('Poranga II');
   await page.getByLabel('WhatsApp',{exact:true}).fill('+55 (92) 00000-0000');
   await page.getByRole('checkbox').check();
   await page.getByRole('button',{name:'Criar conta',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Sua área de vendedor.'})).toBeVisible({timeout:25000});
+  await expect(page.getByRole('heading',{name:'Meus anúncios.'})).toBeVisible({timeout:25000});
  };
  await register(pageA,emails[0],'Auditoria privada A');
  await register(pageB,emails[1],'Auditoria privada B');
@@ -63,7 +63,7 @@ try{
  stamp('Cadastro e autenticação de duas contas gravadas no D1');
 
  await pageA.reload({waitUntil:'domcontentloaded'});
- await expect(pageA.getByRole('heading',{name:'Sua área de vendedor.'})).toBeVisible();
+ await expect(pageA.getByRole('heading',{name:'Meus anúncios.'})).toBeVisible();
  stamp('Persistência real da sessão após recarregar');
 
  await pageA.getByRole('textbox',{name:'Nome comercial'}).fill('Auditoria privada A atualizada');
@@ -76,11 +76,11 @@ try{
 
  const post=async(title,description)=>{
   await pageA.getByRole('button',{name:'Publicar novo anúncio'}).click();
-  await pageA.getByRole('textbox',{name:'Título',exact:true}).fill(title);
+  await pageA.getByRole('textbox',{name:'O que você está vendendo?',exact:true}).fill(title);
   await pageA.locator('select[name="category"]').selectOption('Casa');
   await pageA.getByRole('textbox',{name:'Preço em reais'}).fill('25,90');
-  await pageA.getByRole('textbox',{name:'Descrição',exact:true}).fill(description);
-  await pageA.getByRole('textbox',{name:'Atendimento e entrega'}).fill('Somente auditoria; não há oferta comercial.');
+  await pageA.getByRole('textbox',{name:'Conte sobre o produto',exact:true}).fill(description);
+  await pageA.getByRole('textbox',{name:'Como será a entrega?'}).fill('Somente auditoria; não há oferta comercial.');
   await pageA.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
   await expect(pageA.locator('.account-offer').filter({hasText:title})).toBeVisible({timeout:20000});
   const owned=await authApi(contextA,'listings');
@@ -124,7 +124,7 @@ try{
 
  await pageA.locator('.account-offer').filter({hasText:normalTitle}).getByRole('button',{name:'Editar'}).click();
  const editedTitle=normalTitle+' EDITADO';
- await pageA.getByRole('textbox',{name:'Título',exact:true}).fill(editedTitle);
+ await pageA.getByRole('textbox',{name:'O que você está vendendo?',exact:true}).fill(editedTitle);
  await pageA.getByRole('button',{name:'Salvar alterações',exact:true}).click();
  await expect(pageA.locator('.account-offer').filter({hasText:editedTitle})).toBeVisible();
  const edited=await authApi(contextA,'listings');
