@@ -33,7 +33,7 @@ async function rate(db:Database,key:string,limit:number){
  await db.prepare('DELETE FROM marketplace_rate_limits WHERE expires_at < ?').bind(now).run();
 }
 const accountFields='a.id,a.email,a.neighborhood,a.role,s.display_name AS name,s.status,s.whatsapp';
-async function session(db:Database,request:Request){
+export async function session(db:Database,request:Request){
  const token=tokenFrom(request);if(!token)return null;
  return db.prepare(`SELECT ${accountFields} FROM marketplace_sessions t JOIN marketplace_accounts a ON a.id=t.account_id JOIN marketplace_sellers s ON s.id=a.id WHERE t.token_hash=? AND t.expires_at>unixepoch() AND s.status!='suspended'`).bind(hash(token)).first();
 }
