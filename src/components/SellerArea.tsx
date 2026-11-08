@@ -8,6 +8,8 @@ type Account={id:string;name:string;email:string;neighborhood:string;role:'selle
 type Offer={id:number;title:string;description:string;priceCents:number|null;status:string;fulfillment:string;category:string;condition:string;neighborhood?:string;seller?:string;whatsapp?:string;sellerStatus?:string};
 type Report={id:number;listingId:number;reason:string;details:string;title:string;listingStatus:string;createdAt:number;sellerId?:string};
 type Stats={sellers:number;published:number;reports:number;listings:number};
+type AdminSeller={id:string;name:string;email:string;neighborhood:string;role:string;status:string};
+type AdminListing={id:number;title:string;status:string;seller:string};
 const statuses:Record<string,string>={pending:'Em verificação',published:'Publicado',paused:'Pausado',sold:'Vendido',rejected:'Não aprovado',removed:'Removido'};
 async function api(path:string,method='GET',data?:unknown){
  const response=await fetch('/api/account/'+path,{method,credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(data===undefined?{}:{'Content-Type':'application/json'})},body:data===undefined?undefined:JSON.stringify(data),signal:AbortSignal.timeout(20000)});
@@ -29,13 +31,14 @@ async function preparePhoto(file:File):Promise<Blob>{
 export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
  const [account,setAccount]=useState<Account|null>(null),[loading,setLoading]=useState(true),[register,setRegister]=useState(location.hash==='#cadastro');
  const [offers,setOffers]=useState<Offer[]>([]),[reports,setReports]=useState<Report[]>([]),[stats,setStats]=useState<Stats|null>(null);
+ const [sellers,setSellers]=useState<AdminSeller[]>([]),[allListings,setAllListings]=useState<AdminListing[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(!!draft),[editing,setEditing]=useState<Offer|null>(null);
  const [profileName,setProfileName]=useState(''),[bio,setBio]=useState('');
  const refresh=async()=>{
   if(admin){
-   const [pending,queue,overview]=await Promise.all([api('moderation'),api('admin/reports'),api('admin/stats')]);
-   setOffers(pending.listings);setReports(queue.reports);setStats(overview);
+   const [pending,queue,overview,people,listingRows]=await Promise.all([api('moderation'),api('admin/reports'),api('admin/stats'),api('admin/sellers'),api('admin/listings')]);
+   setOffers(pending.listings);setReports(queue.reports);setStats(overview);setSellers(people.sellers);setAllListings(listingRows.listings);
   }else{
    const [items,profile]=await Promise.all([api('listings'),api('profile')]);
    setOffers(items.listings);setProfileName(profile.profile.name);setBio(profile.profile.bio||'');
@@ -91,8 +94,15 @@ export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
     <button type="button" className="button outline" disabled={busy} onClick={()=>{setRegister(!register);setError('')}}>{register?'Já tenho conta':'Criar conta'}</button>
    </form>:<>
    <div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setOffers([]);setNotice('Você saiu da conta.')})}>Sair</button></div>
+   <form className="panel password-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,data=new FormData(form);void execute(async()=>{await api('password','POST',{oldPassword:String(data.get('oldPassword')||''),newPassword:String(data.get('newPassword')||'')});form.reset();setNotice('Senha alterada e outras sessões encerradas.')})}}>
+     <details><summary>Segurança da conta — alterar minha senha</summary><div className="password-fields"><label>Senha atual<input type="password" name="oldPassword" required minLength={8} maxLength={128} autoComplete="current-password"/></label><label>Nova senha<input type="password" name="newPassword" required minLength={8} maxLength={128} autoComplete="new-password"/></label><button className="button outline" disabled={busy}>Alterar senha</button></div></details>
+   </form>
    {admin&&account.role!=='admin'?<p className="local-note">Acesso restrito à administração.</p>:admin?<>
     {stats&&<div className="stat-grid"><div className="stat-card"><strong>{stats.sellers}</strong><span>Contas</span></div><div className="stat-card"><strong>{stats.published}</strong><span>Anúncios públicos</span></div><div className="stat-card"><strong>{stats.listings}</strong><span>Anúncios registrados</span></div><div className="stat-card"><strong>{stats.reports}</strong><span>Denúncias abertas</span></div></div>}
+    <h2>Gestão de vendedores</h2>
+    {sellers.length?<div className="draft-stack">{sellers.map(seller=><article className="panel" key={seller.id}><div className="account-toolbar"><div><strong>{seller.name}</strong><p>{seller.email} · {seller.neighborhood} · {seller.role==='admin'?'Administrador':seller.status==='suspended'?'Suspenso':'Ativo'}</p></div>{seller.id!==account.id&&<button disabled={busy} className="button outline" onClick={()=>{if(window.confirm(seller.status==='suspended'?'Reativar este vendedor?':'Suspender este vendedor e retirar suas ofertas da vitrine?'))void execute(async()=>{await api('admin/sellers/'+seller.id,'POST',{status:seller.status==='suspended'?'approved':'suspended'});await refresh();setNotice('Status atualizado.')})}}>{seller.status==='suspended'?'Reativar':'Suspender'}</button>}</div></article>)}</div>:<p className="account-notice">Nenhum vendedor cadastrado.</p>}
+    <h2>Administração de anúncios</h2>
+    {allListings.length?<div className="draft-stack">{allListings.map(offer=><article className="panel" key={offer.id}><div className="account-toolbar"><div><strong>{offer.title}</strong><p>{offer.seller} · {statuses[offer.status]||offer.status}</p></div><button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Remover este anúncio do catálogo?'))void execute(async()=>{await api('admin/listings/'+offer.id,'POST',{status:'removed'});await refresh();setNotice('Anúncio removido.')})}}>Remover</button></div></article>)}</div>:<p className="account-notice">Sem anúncios registrados.</p>}
     <h2>Denúncias recebidas</h2>
     {reports.length?<div className="draft-stack">{reports.map(report=><article className="panel" key={report.id}><span className="draft-status">{report.reason} · anúncio #{report.listingId}</span><h3>{report.title}</h3><p>{report.details||'Sem detalhes adicionais.'}</p><p>Status: {statuses[report.listingStatus]||report.listingStatus}</p><div className="account-toolbar"><button disabled={busy} className="button outline" onClick={()=>reviewReport(report,'dismissed')}>Arquivar denúncia</button><button disabled={busy} className="button danger" onClick={()=>reviewReport(report,'removed')}>Retirar anúncio</button>{report.sellerId&&<button disabled={busy} className="button outline" onClick={()=>{if(window.confirm('Suspender este vendedor?'))void execute(async()=>{await api('admin/sellers/'+report.sellerId,'POST',{status:'suspended'});await refresh();setNotice('Vendedor suspenso.')})}}>Suspender vendedor</button>}</div></article>)}</div>:<p className="account-notice">Nenhuma denúncia aberta.</p>}
     <h2>Ofertas sinalizadas para revisão</h2>
