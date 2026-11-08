@@ -117,6 +117,42 @@ export async function handleAccount({request,env}:Context){
    await db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,String(data.status)).run();
    return reply({ok:true});
   }
+  if(path==='/password'&&request.method==='POST'){
+    const oldPassword=typeof data.oldPassword==='string'?data.oldPassword:'',newPassword=typeof data.newPassword==='string'?data.newPassword:'';
+    if(newPassword.length<8||newPassword.length>128)throw new Failure('Nova senha deve ter entre 8 e 128 caracteres.');
+    await rate(db,'password:'+account.id,8);
+    const row=await db.prepare('SELECT password_hash FROM marketplace_accounts WHERE id=?').bind(account.id).first();
+    if(!row||!await passwordMatches(oldPassword,String(row.password_hash)))throw new Failure('Senha atual incorreta.',401);
+    const next=await passwordHash(newPassword);
+    await db.batch([
+      db.prepare('UPDATE marketplace_accounts SET password_hash=? WHERE id=?').bind(next,account.id),
+      db.prepare('DELETE FROM marketplace_sessions WHERE account_id=? AND token_hash!=?').bind(account.id,hash(tokenFrom(request)))
+    ]);
+    return reply({ok:true});
+  }
+  if(path==='/admin/sellers'&&request.method==='GET'){
+    if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
+    const items=await db.prepare("SELECT a.id,a.email,a.neighborhood,a.role,a.created_at AS createdAt,s.display_name AS name,s.status FROM marketplace_accounts a JOIN marketplace_sellers s ON s.id=a.id ORDER BY a.created_at DESC LIMIT 200").all();
+    return reply({sellers:items.results});
+  }
+  if(path==='/admin/listings'&&request.method==='GET'){
+    if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
+    const items=await db.prepare("SELECT l.id,l.title,l.status,l.created_at AS createdAt,s.display_name AS seller FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status!='removed' ORDER BY l.created_at DESC LIMIT 200").all();
+    return reply({listings:items.results});
+  }
+  const adminListing=/^\/admin\/listings\/(\d+)$/.exec(path);
+  if(adminListing&&request.method==='POST'){
+    if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
+    const id=Number(adminListing[1]);
+    if(data.status!=='removed')throw new Failure('Ação inválida.');
+    const listing=await db.prepare("SELECT seller_id FROM marketplace_listings WHERE id=? AND status!='removed'").bind(id).first();
+    if(!listing)throw new Failure('Anúncio não encontrado.',404);
+    await db.batch([
+      db.prepare("UPDATE marketplace_listings SET status='removed' WHERE id=? AND status!='removed'").bind(id),
+      db.prepare("INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)").bind(id,listing.seller_id,'admin_removed')
+    ]);
+    return reply({ok:true});
+  }
   if(path==='/admin/stats'&&request.method==='GET'){
     if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
     const sellers=await db.prepare('SELECT COUNT(*) AS total FROM marketplace_accounts').first();
