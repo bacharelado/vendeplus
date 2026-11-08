@@ -44,24 +44,25 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(!!draft||startNew),[editing,setEditing]=useState<Offer|null>(null);
  const [profileName,setProfileName]=useState(''),[bio,setBio]=useState('');
- const refresh=async()=>{
+ const [readyAccount,setReadyAccount]=useState<string|null>(null);
+ const refresh=async(loadProfile=false)=>{
   if(admin){
    const [pending,queue,overview,people,listingRows]=await Promise.all([api('moderation'),api('admin/reports'),api('admin/stats'),api('admin/sellers'),api('admin/listings')]);
    setOffers(pending.listings);setReports(queue.reports);setStats(overview);setSellers(people.sellers);setAllListings(listingRows.listings);
   }else{
-   const [items,profile]=await Promise.all([api('listings'),api('profile')]);
-   setOffers(items.listings);setProfileName(profile.profile.name);setBio(profile.profile.bio||'');
+   const [items,profile]=await Promise.all([api('listings'),loadProfile?api('profile'):Promise.resolve(null)]);
+   setOffers(items.listings);if(profile){setProfileName(profile.profile.name);setBio(profile.profile.bio||'')}
   }
  };
  useEffect(()=>{let active=true;api('session').then(value=>{if(active)setAccount(value.account)}).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setLoading(false)});return ()=>{active=false}},[]);
- useEffect(()=>{if(account&&(!admin||account.role==='admin'))void refresh().catch(reason=>setError(reason.message))},[account,admin]);
+ useEffect(()=>{if(account&&(!admin||account.role==='admin')){let active=true;setReadyAccount(null);void refresh(true).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setReadyAccount(account.id)});return ()=>{active=false}}},[account,admin]);
  const execute=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');try{await fn()}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível concluir a solicitação.')}finally{setBusy(false)}};
  const authenticate=(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
   const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
   const whatsapp=normalizeWhatsapp(data.whatsapp);
   if(register&&!whatsapp){setError('Informe um WhatsApp brasileiro com DDD.');return}
-  void execute(async()=>{const value=await api(register?'register':'login','POST',{...data,...(register?{whatsapp}:{}),acceptContact:data.acceptContact==='on'});form.reset();setAccount(value.account);setRegister(false);setNotice(register?'Conta criada. Você já pode anunciar. Seu contato ainda não foi verificado.':'Você entrou na sua conta.')});
+  void execute(async()=>{const value=await api(register?'register':'login','POST',{...data,...(register?{whatsapp}:{}),acceptContact:data.acceptContact==='on'});form.reset();setReadyAccount(null);setAccount(value.account);setRegister(false);setNotice(register?'Conta criada. Você já pode anunciar. Seu contato ainda não foi verificado.':'Você entrou na sua conta.')});
  };
  const submit=(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
@@ -91,8 +92,8 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
  const update=(offer:Offer,status:string)=>void execute(async()=>{await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice('Anúncio atualizado.')});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
- const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh();setNotice('Perfil atualizado.')})};
- if(loading)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
+ const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh(true);setNotice('Perfil atualizado.')})};
+ if(loading||account&&(!admin||account.role==='admin')&&readyAccount!==account.id)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
  return <section className="account-area">
   <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do site.':account?'Meus anúncios.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':'Para comprar, você não precisa de conta. Para anunciar, entre ou crie sua conta.'}</p></div>
   {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<p role="status" className="account-notice">{notice}</p>}
@@ -104,7 +105,7 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
     <button className="button primary" disabled={busy} type="submit">{busy?'Aguarde…':register?'Criar conta':'Entrar'}</button>
     <button type="button" className="button outline" disabled={busy} onClick={()=>{setRegister(!register);setError('')}}>{register?'Já tenho conta':'Criar conta'}</button>
    </form>:<>
-   <div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setRegister(false);setOffers([]);setNotice('Você saiu da conta.')})}>Sair</button></div>
+   <div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setReadyAccount(null);setRegister(false);setOffers([]);setNotice('Você saiu da conta.')})}>Sair</button></div>
    <form className="panel password-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,data=new FormData(form);void execute(async()=>{await api('password','POST',{oldPassword:String(data.get('oldPassword')||''),newPassword:String(data.get('newPassword')||'')});form.reset();setNotice('Senha alterada e outras sessões encerradas.')})}}>
      <details><summary>Segurança da conta — alterar minha senha</summary><div className="password-fields"><label>Senha atual<input type="password" name="oldPassword" required minLength={8} maxLength={128} autoComplete="current-password"/></label><label>Nova senha<input type="password" name="newPassword" required minLength={8} maxLength={128} autoComplete="new-password"/></label><button className="button outline" disabled={busy}>Alterar senha</button></div></details>
    </form>

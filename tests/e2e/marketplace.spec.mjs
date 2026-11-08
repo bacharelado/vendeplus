@@ -205,3 +205,25 @@ test('botão carrega a página seguinte sem repetir anúncios',async({page})=>{
  await expect(page.locator('.listing-card')).toHaveCount(3);
  await expect(page.getByRole('button',{name:'Ver mais anúncios',exact:true})).toHaveCount(0);
 });
+
+test('perfil só fica editável após carregar e não perde texto ao publicar anúncio',async({page})=>{
+ await catalog(page);
+ const account={id:'teste',name:'Conta de teste',email:'teste@example.invalid',neighborhood:'Poranga II',role:'seller',status:'pending'};
+ let release;const loaded=new Promise(resolve=>{release=resolve});
+ await page.route('**/api/account/session',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({account})}));
+ await page.route('**/api/account/listings',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(route.request().method()==='POST'?{id:123,status:'published'}:{listings:[]})}));
+ await page.route('**/api/account/profile',async route=>{await loaded;return route.fulfill({contentType:'application/json',body:JSON.stringify({profile:{name:'Nome carregado',bio:''}})})});
+ await page.goto('/#anunciar');
+ await expect(page.getByText('Carregando sua conta…',{exact:true})).toBeVisible();
+ await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveCount(0);
+ release();
+ await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome carregado');
+ await page.getByRole('textbox',{name:'Nome comercial',exact:true}).fill('Nome novo ainda não salvo');
+ await page.getByRole('textbox',{name:'O que você está vendendo?',exact:true}).fill('Mesa para testar carregamento');
+ await page.getByRole('textbox',{name:'Preço em reais'}).fill('50,00');
+ await page.getByRole('textbox',{name:'Conte sobre o produto',exact:true}).fill('Mesa usada com quatro lugares.');
+ await page.getByRole('textbox',{name:'Como será a entrega?'}).fill('Retirada no bairro');
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
+ await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome novo ainda não salvo');
+});
