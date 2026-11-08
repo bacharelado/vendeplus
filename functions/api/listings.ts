@@ -13,7 +13,7 @@ export async function onRequest({request,env}:Context){
     const listings=result.results.map(row=>({
       id:row.id,title:row.title,description:row.description,priceCents:row.priceCents,
       category:row.category,condition:row.condition,image:row.image,fulfillment:row.fulfillment,
-      seller:row.seller,contactWhatsapp:typeof row.contactWhatsapp==='string'&&/^55\d{10,11}$/.test(row.contactWhatsapp)?row.contactWhatsapp:undefined,
+      seller:row.seller,sellerId:row.sellerId,neighborhood:row.neighborhood,contactWhatsapp:typeof row.contactWhatsapp==='string'&&/^55\d{10,11}$/.test(row.contactWhatsapp)?row.contactWhatsapp:undefined,
       createdAt:row.createdAt,status:'PUBLICADO'
     }));
     return request.method==='HEAD'?new Response(null,{headers}):respond({listings});

@@ -1,5 +1,6 @@
 import {normalizeWhatsapp} from '../../src/lib/phone.mjs';
 import {randomBytes,scrypt,timingSafeEqual,createHash} from 'node:crypto';
+import {moderateOffer} from './moderation.ts';
 
 type Row=Record<string,unknown>;
 type Statement={bind:(...values:unknown[])=>Statement;first:()=>Promise<Row|null>;all:()=>Promise<{results:Row[]}>;run:()=>Promise<{meta:{changes:number}}>};
@@ -79,17 +80,41 @@ export async function handleAccount({request,env}:Context){
   }
   if(path==='/listings'&&request.method==='POST'){
    const values=listingData(data),requestId=text(data.requestId,32,36);if(!/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(requestId))throw new Failure('Identificador da solicitação inválido.');
-   const previous=await db.prepare('SELECT listing_id AS id FROM marketplace_listing_details WHERE seller_id=? AND request_id=?').bind(account.id,requestId).first();if(previous)return reply({id:previous.id,status:'pending'});
+   const previous=await db.prepare('SELECT l.id,l.status FROM marketplace_listings l JOIN marketplace_listing_details d ON d.listing_id=l.id WHERE d.seller_id=? AND d.request_id=?').bind(account.id,requestId).first();if(previous)return reply({id:previous.id,status:previous.status});
    await rate(db,`listing:${account.id}`,10);
    const count=await db.prepare("SELECT count(*) AS total FROM marketplace_listings WHERE seller_id=? AND status NOT IN ('removed','sold')").bind(account.id).first();if(Number(count?.total)>=50)throw new Failure('Você atingiu o limite de 50 anúncios ativos.',409);
    const id=Number.parseInt(randomBytes(6).toString('hex'),16);
-   await db.batch([db.prepare('INSERT INTO marketplace_listings(id,seller_id,title,description,price_cents,category,condition,fulfillment) VALUES (?,?,?,?,?,?,?,?)').bind(id,account.id,...values),db.prepare('INSERT INTO marketplace_listing_details(listing_id,neighborhood,request_id,seller_id) VALUES (?,?,?,?)').bind(id,data.neighborhood,requestId,account.id)]);
-   return reply({id,status:'pending'},201);
+   const status=moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':'published';
+   await db.batch([db.prepare("INSERT INTO marketplace_listings(id,seller_id,title,description,price_cents,category,condition,fulfillment,status) VALUES (?,?,?,?,?,?,?,?,?)").bind(id,account.id,...values,status),db.prepare('INSERT INTO marketplace_listing_details(listing_id,neighborhood,request_id,seller_id) VALUES (?,?,?,?)').bind(id,data.neighborhood,requestId,account.id),db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,status==='published'?'auto_published':'flagged_for_review')]);
+   return reply({id,status},201);
+  }
+  if(path==='/profile'&&request.method==='GET'){
+   const profile=await db.prepare("SELECT s.display_name AS name,s.whatsapp,a.neighborhood,COALESCE(p.bio,'') AS bio FROM marketplace_sellers s JOIN marketplace_accounts a ON a.id=s.id LEFT JOIN marketplace_seller_profiles p ON p.seller_id=s.id WHERE s.id=?").bind(account.id).first();
+   return reply({profile});
+  }
+  if(path==='/profile'&&request.method==='PATCH'){
+   const name=text(data.name,2,80),bio=typeof data.bio==='string'?data.bio.trim():'';
+   if(bio.length>600)throw new Failure('Descrição muito longa.');
+   await db.batch([db.prepare('UPDATE marketplace_sellers SET display_name=? WHERE id=?').bind(name,account.id),db.prepare('INSERT INTO marketplace_seller_profiles(seller_id,bio) VALUES (?,?) ON CONFLICT(seller_id) DO UPDATE SET bio=excluded.bio').bind(account.id,bio)]);
+   return reply({ok:true});
   }
   const own=/^\/listings\/(\d+)$/.exec(path);
   if(own&&request.method==='PATCH'){
-   if(!['paused','sold','removed'].includes(String(data.status)))throw new Failure('Ação inválida.');
-   const result=await db.prepare("UPDATE marketplace_listings SET status=? WHERE id=? AND seller_id=? AND status!='removed'").bind(data.status,Number(own[1]),account.id).run();if(!result.meta.changes)throw new Failure('Anúncio não encontrado.',404);
+   const id=Number(own[1]);
+   const current=await db.prepare("SELECT status FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
+   if(!current||['removed','rejected'].includes(String(current.status)))throw new Failure('Anúncio não encontrado.',404);
+   if(data.action==='edit'){
+    const values=listingData(data);
+    const status=moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':current.status==='pending'?'published':String(current.status);
+    await db.batch([db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,'edited'),db.prepare('UPDATE marketplace_listings SET title=?,description=?,price_cents=?,category=?,condition=?,fulfillment=?,status=? WHERE id=? AND seller_id=?').bind(...values,status,id,account.id),db.prepare('UPDATE marketplace_listing_details SET neighborhood=? WHERE listing_id=? AND seller_id=?').bind(data.neighborhood,id,account.id)]);
+    return reply({ok:true,status});
+   }
+   if(!['paused','sold','removed','published'].includes(String(data.status)))throw new Failure('Ação inválida.');
+   if(data.status==='published'&&current.status!=='paused')throw new Failure('Somente anúncios pausados podem ser reativados.',409);
+   if(data.status==='paused'&&current.status!=='published')throw new Failure('Somente anúncios publicados podem ser pausados.',409);
+   if(data.status==='sold'&&!['published','paused'].includes(String(current.status)))throw new Failure('O anúncio não pode ser marcado como vendido.',409);
+   const result=await db.prepare('UPDATE marketplace_listings SET status=? WHERE id=? AND seller_id=? AND status=?').bind(data.status,id,account.id,current.status).run();if(!result.meta.changes)throw new Failure('O anúncio mudou. Atualize.',409);
+   await db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,String(data.status)).run();
    return reply({ok:true});
   }
   if(path.startsWith('/moderation')){
