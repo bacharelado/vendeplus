@@ -17,6 +17,8 @@ export type Listing = {
   category:Category;
   condition:Condition;
   seller:string;
+  sellerId?:string;
+  neighborhood?:string;
   image?:string;
   fulfillment:string;
   contactWhatsapp?:string;
