@@ -110,7 +110,15 @@ export async function connectPreviewDatabase({token,ref,commit,migration,fetchIm
     deployment=(await call(`${projectPath}/deployments/${deployment.id}`)).result;
     ensurePreview(deployment);
   }
-  if(deployment.latest_stage?.name!=='deploy'||deployment.latest_stage?.status!=='success')throw new Error('O novo deployment da prévia não foi concluído com sucesso. Consulte seus logs no Cloudflare.');
+  if(deployment.latest_stage?.name!=='deploy'||deployment.latest_stage?.status!=='success'){
+    let diagnostics='';
+    try{
+      const logs=(await call(projectPath+'/deployments/'+deployment.id+'/history/logs')).result;
+      const lines=Array.isArray(logs?.data)?logs.data.map(item=>String(item.line||'')).filter(line=>/error|failed|failure|exit code|exception/i.test(line)).slice(-8):[];
+      diagnostics=lines.map(line=>line.replaceAll(token.trim(),'[redigido]').replace(/Bearer\s+\S+/gi,'Bearer [redigido]').slice(0,350)).join(' | ');
+    }catch{diagnostics='Logs de build indisponíveis.'}
+    throw new Error('A implantação da prévia falhou ('+String(deployment.latest_stage?.name||'stage')+'/'+String(deployment.latest_stage?.status||'unknown')+'). '+diagnostics);
+  }
   const previewUrl=publicPreviewUrl(deployment.url);
   let catalog;
   for(let attempt=0;attempt<12;attempt++){
