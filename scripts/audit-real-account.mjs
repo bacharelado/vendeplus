@@ -49,7 +49,7 @@ try{
   await page.getByLabel('Nome público').fill(display);
   await page.getByLabel('E-mail',{exact:true}).fill(email);
   await page.getByLabel('Senha',{exact:true}).fill(password);
-  await page.getByLabel('Bairro',{exact:true}).selectOption('Poranga II');
+  await page.locator('select[name="neighborhood"]').selectOption('Poranga II');
   await page.getByLabel('WhatsApp',{exact:true}).fill('+55 (92) 00000-0000');
   await page.getByRole('checkbox').check();
   await page.getByRole('button',{name:'Criar conta',exact:true}).click();
@@ -77,7 +77,7 @@ try{
  const post=async(title,description)=>{
   await pageA.getByRole('button',{name:'Publicar novo anúncio'}).click();
   await pageA.getByRole('textbox',{name:'Título',exact:true}).fill(title);
-  await pageA.getByRole('combobox',{name:'Categoria'}).selectOption('Casa');
+  await pageA.locator('select[name="category"]').selectOption('Casa');
   await pageA.getByRole('textbox',{name:'Preço em reais'}).fill('25,90');
   await pageA.getByRole('textbox',{name:'Descrição',exact:true}).fill(description);
   await pageA.getByRole('textbox',{name:'Atendimento e entrega'}).fill('Somente auditoria; não há oferta comercial.');
@@ -115,7 +115,7 @@ try{
  stamp('Visibilidade no navegador do comprador e link WhatsApp');
 
  await pageB.getByRole('button',{name:'Denunciar este anúncio'}).click();
- await pageB.getByRole('combobox',{name:'Motivo'}).selectOption('fraud');
+ await pageB.locator('.report-form select').selectOption('fraud');
  await pageB.getByRole('button',{name:'Enviar denúncia'}).click();
  await expect(pageB.getByRole('status').filter({hasText:'Denúncia recebida'})).toBeVisible();
  const reports=await query('SELECT COUNT(*) AS total FROM marketplace_reports WHERE listing_id=?',[published.id]);
