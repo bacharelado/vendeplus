@@ -1,4 +1,5 @@
-import {useEffect,useState,type FormEvent} from 'react';
+import {useEffect,useRef,useState,type FormEvent} from 'react';
+import {PhotoAssistant,type PhotoAISuggestion} from './PhotoAssistant';
 import {categories,type Draft} from '../data/marketplace';
 import {formatBRL,parseBRL} from '../lib/pricing.mjs';
 import {normalizeWhatsapp} from '../lib/phone.mjs';
@@ -28,7 +29,17 @@ async function preparePhoto(file:File):Promise<Blob>{
  if(blob.size>3145728)throw new Error('Foto muito grande após a conversão.');
  return blob;
 }
-export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
+export function SellerArea({draft,admin=false,initialPhoto=null}:{draft?:Draft;admin?:boolean;initialPhoto?:File|null}){
+ const formRef=useRef<HTMLFormElement>(null);
+ const [selectedPhoto,setSelectedPhoto]=useState<File|null>(initialPhoto);
+ const applySuggestion=(suggestion:PhotoAISuggestion)=>{
+  const form=formRef.current;if(!form)return;
+  const title=form.elements.namedItem('title') as HTMLInputElement|null;
+  const description=form.elements.namedItem('description') as HTMLTextAreaElement|null;
+  if(title)title.value=suggestion.title;
+  if(description)description.value=suggestion.description;
+  setCategory(suggestion.category);
+ };
  const [account,setAccount]=useState<Account|null>(null),[loading,setLoading]=useState(true),[register,setRegister]=useState(location.hash==='#cadastro');
  const [offers,setOffers]=useState<Offer[]>([]),[reports,setReports]=useState<Report[]>([]),[stats,setStats]=useState<Stats|null>(null);
  const [sellers,setSellers]=useState<AdminSeller[]>([]),[allListings,setAllListings]=useState<AdminListing[]>([]);
@@ -57,8 +68,7 @@ export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
  const submit=(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
   const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
-  const photo=data.photo instanceof File?data.photo:null;
-  delete data.photo;
+  const photo=selectedPhoto;
   const price=parseBRL(data.price,category==='Serviços');if(!price.ok){setError(price.error);return}
   void execute(async()=>{
    const payload={...data,priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
@@ -72,11 +82,11 @@ export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
      if(!response.ok){const value=await response.json();throw new Error(value.error||'Falha na foto.')}
     }catch(reason){photoNotice=' A oferta foi salva, mas a foto não: '+(reason instanceof Error?reason.message:'erro de envio')+'.'}
    }
-   setRequestId(createDraftId());setShowForm(false);setEditing(null);await refresh();
+   setRequestId(createDraftId());setShowForm(false);setEditing(null);setSelectedPhoto(null);await refresh();
    setNotice(result.status==='pending'?'Oferta retida para verificação por regra automática.'+photoNotice:'Oferta salva e disponível na vitrine.'+photoNotice);
   });
  };
- const edit=(offer:Offer)=>{setEditing(offer);setCategory(offer.category);setShowForm(true);window.scrollTo({top:0,behavior:'smooth'})};
+ const edit=(offer:Offer)=>{setEditing(offer);setSelectedPhoto(null);setCategory(offer.category);setShowForm(true);window.scrollTo({top:0,behavior:'smooth'})};
  const update=(offer:Offer,status:string)=>void execute(async()=>{await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice('Anúncio atualizado.')});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
@@ -110,15 +120,16 @@ export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
    </>:<>
     <p className="account-notice">{account.status==='suspended'?'Conta suspensa.':'Ofertas comuns são publicadas automaticamente. Seu contato não recebe selo de verificado sem conferência.'}</p>
     <div className="account-toolbar"><button className="button primary" disabled={busy} onClick={()=>{setEditing(null);setCategory('Alimentação');setShowForm(v=>!v)}}>{showForm?'Fechar formulário':'Publicar novo anúncio'}</button><a className="button outline" href={'#vendedor-'+account.id}>Meu perfil público</a>{account.role==='admin'&&<a className="button outline" href="#admin">Administração</a>}</div>
-    {showForm&&<form className="draft-form panel" onSubmit={submit} key={editing?.id||requestId}>
+    {showForm&&<form ref={formRef} className="draft-form panel" onSubmit={submit} key={editing?.id||requestId}>
      <h2>{editing?'Editar anúncio':'Publicar anúncio'}</h2>
+     <PhotoAssistant onFile={setSelectedPhoto} onSuggestion={applySuggestion}/>
      <label>Título<input name="title" required minLength={5} maxLength={90} defaultValue={editing?.title||draft?.title}/></label>
      <div className="form-row"><label>Categoria<select name="category" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></label><label>Condição<select name="condition" defaultValue={editing?.condition||draft?.condition||'Novo'}><option>Novo</option><option>Usado</option><option>Não aplicável</option></select></label></div>
      <label>Preço em reais<input name="price" inputMode="decimal" maxLength={20} defaultValue={editing?.priceCents?((editing.priceCents/100).toFixed(2).replace('.',',')):draft?.priceCents?((draft.priceCents/100).toFixed(2).replace('.',',')):''}/><span className="field-help">Serviços podem ser sob orçamento.</span></label>
      <label>Descrição<textarea name="description" required minLength={10} maxLength={2000} defaultValue={editing?.description||draft?.description}/></label>
      <label>Bairro<select name="neighborhood" defaultValue={editing?.neighborhood||account.neighborhood}><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label>
      <label>Atendimento e entrega<input name="fulfillment" required maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></label>
-     <label>Foto do anúncio (opcional)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"/><span className="field-help">A foto é convertida no navegador para retirar metadados antes do envio. O upload exige armazenamento R2 configurado.</span></label>
+     <p className="field-help">A foto selecionada será enviada para o anúncio ao publicar, desde que o armazenamento R2 esteja configurado. A sugestão de IA não salva a imagem.</p>
      <p className="field-help">Anuncie somente itens legais e verdadeiros. Ofertas suspeitas podem ser retidas e denunciadas.</p>
      <button type="submit" className="button primary" disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</button>
      {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{setEditing(null);setShowForm(false)}}>Cancelar edição</button>}

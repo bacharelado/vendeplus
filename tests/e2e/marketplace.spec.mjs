@@ -178,3 +178,18 @@ test('retorno ao catálogo atualiza ofertas retiradas no servidor',async({page})
  await catalog(page);let available=true;await page.route('**/api/listings',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:available?items:[]})}));
  await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(2);await page.goto('/#conta');await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();available=false;await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);await expect(page.getByRole('heading',{name:'O bairro tem muito a oferecer'})).toBeVisible();
 });
+
+test('foto de produto preenche título, categoria e descrição sem inventar preço',async({page})=>{
+ await catalog(page);
+ await page.route('**/api/photo-analyze',route=>route.fulfill({
+   status:200,contentType:'application/json',
+   body:JSON.stringify({suggestion:{title:'Cadeira de madeira usada',description:'Cadeira com estrutura de madeira e encosto visível.',category:'Casa',needsReview:true,priceCents:null}})
+ }));
+ await page.goto('/#publicar');
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL7wQAAAABJRU5ErkJggg==','base64');
+ await page.getByLabel('Foto para criar anúncio com IA').setInputFiles({name:'produto.png',mimeType:'image/png',buffer:png});
+ await expect(page.getByRole('textbox',{name:'Título do anúncio'})).toHaveValue('Cadeira de madeira usada',{timeout:12000});
+ await expect(page.getByRole('combobox',{name:'Categoria'})).toHaveValue('Casa');
+ await expect(page.getByRole('textbox',{name:'Descrição',exact:true})).toHaveValue('Cadeira com estrutura de madeira e encosto visível.');
+ await expect(page.getByRole('textbox',{name:'Preço em reais'})).toHaveValue('');
+});
