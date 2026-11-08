@@ -5,49 +5,118 @@ import {normalizeWhatsapp} from '../lib/phone.mjs';
 import {createDraftId} from '../lib/drafts.mjs';
 
 type Account={id:string;name:string;email:string;neighborhood:string;role:'seller'|'admin';status:string};
-type Offer={id:number;title:string;description:string;priceCents:number|null;status:string;fulfillment:string;seller?:string;whatsapp?:string;sellerStatus?:string;sellerId?:string};
-const statuses:Record<string,string>={pending:'Em análise',published:'Publicado',paused:'Pausado',sold:'Vendido',rejected:'Não aprovado'};
+type Offer={id:number;title:string;description:string;priceCents:number|null;status:string;fulfillment:string;category:string;condition:string;neighborhood?:string;seller?:string;whatsapp?:string;sellerStatus?:string};
+type Report={id:number;listingId:number;reason:string;details:string;title:string;listingStatus:string;createdAt:number;sellerId?:string};
+type Stats={sellers:number;published:number;reports:number;listings:number};
+const statuses:Record<string,string>={pending:'Em verificação',published:'Publicado',paused:'Pausado',sold:'Vendido',rejected:'Não aprovado',removed:'Removido'};
 async function api(path:string,method='GET',data?:unknown){
  const response=await fetch('/api/account/'+path,{method,credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(data===undefined?{}:{'Content-Type':'application/json'})},body:data===undefined?undefined:JSON.stringify(data),signal:AbortSignal.timeout(20000)});
- let value;try{value=await response.json()}catch{throw new Error('Não foi possível acessar sua conta. Tente novamente.')}
+ let value;try{value=await response.json()}catch{throw new Error('Não foi possível acessar o servidor.')}
  if(!response.ok)throw new Error(typeof value.error==='string'?value.error:'Não foi possível concluir a solicitação.');
  return value;
 }
+async function preparePhoto(file:File):Promise<Blob>{
+ if(!file.type.startsWith('image/')||file.size>12000000)throw new Error('Selecione uma foto de até 12 MB.');
+ const bitmap=await createImageBitmap(file);
+ const ratio=Math.min(1,1280/Math.max(bitmap.width,bitmap.height));
+ const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*ratio));canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
+ const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Não foi possível processar a foto.');
+ ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
+ const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Foto inválida.')),'image/webp',0.8));
+ if(blob.size>3145728)throw new Error('Foto muito grande após a conversão.');
+ return blob;
+}
 export function SellerArea({draft,admin=false}:{draft?:Draft;admin?:boolean}){
  const [account,setAccount]=useState<Account|null>(null),[loading,setLoading]=useState(true),[register,setRegister]=useState(location.hash==='#cadastro');
- const [offers,setOffers]=useState<Offer[]>([]),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
- const [category,setCategory]=useState(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(!!draft);
- const refresh=async()=>{const value=await api(admin?'moderation':'listings');setOffers(value.listings)};
- useEffect(()=>{let active=true;api('session').then(value=>{if(active)setAccount(value.account)}).catch(error=>{if(active)setError(error.message)}).finally(()=>{if(active)setLoading(false)});return ()=>{active=false}},[]);
- useEffect(()=>{if(account&&(!admin||account.role==='admin'))void refresh().catch(reason=>setError(reason.message))},[account,admin]);
- const execute=async(action:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');try{await action()}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível concluir.')}finally{setBusy(false)}};
- const authenticate=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=event.currentTarget,data=Object.fromEntries(new FormData(form));const whatsapp=normalizeWhatsapp(data.whatsapp);if(register&&!whatsapp){setError('Informe um WhatsApp brasileiro com DDD. Você pode usar +55, espaços, parênteses e hífen.');return}void execute(async()=>{const value=await api(register?'register':'login','POST',{...data,...(register?{whatsapp}:{}),acceptContact:data.acceptContact==='on'});form.reset();setAccount(value.account);setNotice(register?'Conta criada. Seu cadastro e seus anúncios passam por revisão antes da publicação.':'Você entrou na sua conta.')})};
- const submit=(event:FormEvent<HTMLFormElement>)=>{
-  event.preventDefault();const form=event.currentTarget,data=Object.fromEntries(new FormData(form));const price=parseBRL(data.price,category==='Serviços');if(!price.ok){setError(price.error);return}
-  void execute(async()=>{await api('listings','POST',{...data,priceCents:price.cents,requestId});setRequestId(createDraftId());setShowForm(false);await refresh();setNotice('Anúncio recebido e salvo online. Ele aparecerá no catálogo após a aprovação do vendedor e do anúncio.')});
+ const [offers,setOffers]=useState<Offer[]>([]),[reports,setReports]=useState<Report[]>([]),[stats,setStats]=useState<Stats|null>(null);
+ const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+ const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(!!draft),[editing,setEditing]=useState<Offer|null>(null);
+ const [profileName,setProfileName]=useState(''),[bio,setBio]=useState('');
+ const refresh=async()=>{
+  if(admin){
+   const [pending,queue,overview]=await Promise.all([api('moderation'),api('admin/reports'),api('admin/stats')]);
+   setOffers(pending.listings);setReports(queue.reports);setStats(overview);
+  }else{
+   const [items,profile]=await Promise.all([api('listings'),api('profile')]);
+   setOffers(items.listings);setProfileName(profile.profile.name);setBio(profile.profile.bio||'');
+  }
  };
- const update=(offer:Offer,status:string)=>void execute(async()=>{await api(`${admin?'moderation':'listings'}/${offer.id}`,admin?'POST':'PATCH',{status});await refresh();setNotice(admin?'Revisão registrada.':'Anúncio atualizado.')});
+ useEffect(()=>{let active=true;api('session').then(value=>{if(active)setAccount(value.account)}).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setLoading(false)});return ()=>{active=false}},[]);
+ useEffect(()=>{if(account&&(!admin||account.role==='admin'))void refresh().catch(reason=>setError(reason.message))},[account,admin]);
+ const execute=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');try{await fn()}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível concluir a solicitação.')}finally{setBusy(false)}};
+ const authenticate=(event:FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();
+  const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
+  const whatsapp=normalizeWhatsapp(data.whatsapp);
+  if(register&&!whatsapp){setError('Informe um WhatsApp brasileiro com DDD.');return}
+  void execute(async()=>{const value=await api(register?'register':'login','POST',{...data,...(register?{whatsapp}:{}),acceptContact:data.acceptContact==='on'});form.reset();setAccount(value.account);setNotice(register?'Conta criada. Você já pode anunciar. Seu contato ainda não foi verificado.':'Você entrou na sua conta.')});
+ };
+ const submit=(event:FormEvent<HTMLFormElement>)=>{
+  event.preventDefault();
+  const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
+  const photo=data.photo instanceof File?data.photo:null;
+  delete data.photo;
+  const price=parseBRL(data.price,category==='Serviços');if(!price.ok){setError(price.error);return}
+  void execute(async()=>{
+   const payload={...data,priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
+   const result=await api(editing?'listings/'+editing.id:'listings',editing?'PATCH':'POST',payload);
+   const id=editing?.id||Number(result.id);
+   let photoNotice='';
+   if(photo&&photo.size){
+    try{
+     const image=await preparePhoto(photo);
+     const response=await fetch('/api/media-upload?listingId='+id,{method:'POST',headers:{'Content-Type':image.type},body:image,credentials:'same-origin',signal:AbortSignal.timeout(30000)});
+     if(!response.ok){const value=await response.json();throw new Error(value.error||'Falha na foto.')}
+    }catch(reason){photoNotice=' A oferta foi salva, mas a foto não: '+(reason instanceof Error?reason.message:'erro de envio')+'.'}
+   }
+   setRequestId(createDraftId());setShowForm(false);setEditing(null);await refresh();
+   setNotice(result.status==='pending'?'Oferta retida para verificação por regra automática.'+photoNotice:'Oferta salva e disponível na vitrine.'+photoNotice);
+  });
+ };
+ const edit=(offer:Offer)=>{setEditing(offer);setCategory(offer.category);setShowForm(true);window.scrollTo({top:0,behavior:'smooth'})};
+ const update=(offer:Offer,status:string)=>void execute(async()=>{await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice('Anúncio atualizado.')});
+ const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
+ const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
+ const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh();setNotice('Perfil atualizado.')})};
  if(loading)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
- return <section className="account-area"><div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Revisão de anúncios.':account?'Sua área de vendedor.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?`Olá, ${account.name}.`:'Quem compra pode explorar sem cadastro. Entre para anunciar e acompanhar suas ofertas.'}</p></div>
- {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<p role="status" className="account-notice">{notice}</p>}
- {!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
-  {register&&<label>Nome para seus anúncios<input name="name" required minLength={2} maxLength={80} autoComplete="name"/></label>}
-  <label>E-mail<input name="email" type="email" required maxLength={254} autoComplete="email"/></label>
-  <label>Senha<input name="password" type="password" aria-label="Senha" aria-describedby="password-help" required minLength={8} maxLength={128} autoComplete={register?'new-password':'current-password'}/><span id="password-help" className="field-help">Use de 8 a 128 caracteres. A recuperação por e-mail ainda não está disponível.</span></label>
-  {register&&<><label>Bairro<select name="neighborhood" required><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label><label>WhatsApp<input name="whatsapp" type="tel" aria-label="WhatsApp" aria-describedby="whatsapp-help" required maxLength={32} placeholder="DDD + número, com ou sem +55" autoComplete="tel"/><span id="whatsapp-help" className="field-help">Informe o DDD. Aceitamos +55, espaços, parênteses e hífen.</span></label><label className="consent"><input type="checkbox" name="acceptContact" required/>Autorizo a divulgação do meu nome e WhatsApp nos meus anúncios aprovados. Meu e-mail não será público.</label><p className="field-help">O cadastro não confirma automaticamente a identidade nem a propriedade do telefone. A equipe revisa os dados antes da publicação.</p></>}
-  <button type="submit" className="button primary" disabled={busy}>{busy?'Aguarde…':register?'Criar conta':'Entrar'}</button><button type="button" className="button outline" disabled={busy} onClick={()=>{setRegister(!register);setError('')}}>{register?'Já tenho conta':'Quero criar uma conta'}</button>
- </form>:<><div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setOffers([]);setNotice('Você saiu da conta.')})}>Sair da conta</button></div>
- {admin&&account.role!=='admin'?<p className="local-note">Acesso restrito à administração.</p>:<>
- {!admin&&<><p className="local-note">{account.status==='approved'?'Seu cadastro está aprovado. Os novos anúncios passam por revisão.':'Seu cadastro está em análise. Você já pode enviar anúncios; eles só ficam públicos após a aprovação.'}</p><div className="account-toolbar"><button className="button primary" disabled={busy} onClick={()=>setShowForm(!showForm)}>{showForm?'Fechar formulário':'Enviar novo anúncio'}</button><a className="button outline" href="#painel">Rascunhos deste navegador</a>{account.role==='admin'&&<a href="#admin" className="button outline">Revisar anúncios</a>}</div>
- {showForm&&<form className="draft-form panel" onSubmit={submit} key={requestId}>
- <h2>Enviar anúncio para revisão</h2><label>Título do anúncio<input name="title" required minLength={5} maxLength={90} defaultValue={draft?.title}/></label>
- <div className="form-row"><label>Categoria<select name="category" value={category} onChange={e=>setCategory(e.target.value as typeof category)}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></label><label>Condição<select name="condition" defaultValue={draft?.condition||'Novo'}><option>Novo</option><option>Usado</option><option>Não aplicável</option></select></label></div>
- <label>Preço em reais<input name="price" inputMode="decimal" maxLength={20} defaultValue={draft?.priceCents?((draft.priceCents/100).toFixed(2).replace('.',',')):''}/><span className="field-help">Em serviços, deixe em branco para orçamento.</span></label>
- <label>Descrição<textarea name="description" required minLength={10} maxLength={2000} defaultValue={draft?.description}/></label><label>Bairro da oferta<select name="neighborhood" defaultValue={account.neighborhood}><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label><label>Atendimento ou entrega<input name="fulfillment" required maxLength={180} defaultValue={draft?.fulfillment}/></label>
- <p className="field-help">Envie somente ofertas reais que você tem autorização para anunciar. Não inclua senhas ou documentos pessoais na descrição.</p><button className="button primary" type="submit" disabled={busy}>{busy?'Enviando…':'Enviar para revisão'}</button>
- </form>}</>}
- <div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">{statuses[offer.status]||'Em análise'}</span><h2>{offer.title}</h2><strong>{formatBRL(offer.priceCents)}</strong><p className="description">{offer.description}</p><p>{offer.fulfillment}</p>{admin&&<p>Vendedor: {offer.seller} · WhatsApp: {offer.whatsapp} · Cadastro: {offer.sellerStatus==='approved'?'aprovado':'aguardando verificação'}</p>}<div className="account-toolbar">{admin?<>{offer.sellerStatus==='pending'&&<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Você conferiu os dados do vendedor e confirmou que ele controla o WhatsApp informado?'))void execute(async()=>{await api(`moderation/${offer.id}/seller`,'POST',{confirmContact:true});await refresh();setNotice('Vendedor aprovado. Revise o anúncio antes de publicá-lo.')})}}>Aprovar cadastro verificado</button>}<button className="button primary" disabled={busy||offer.sellerStatus!=='approved'} onClick={()=>update(offer,'published')}>Aprovar anúncio</button><button className="button outline" disabled={busy} onClick={()=>update(offer,'rejected')}>Não aprovar</button></>:<>{offer.status==='published'&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'paused')}>Pausar</button>}{['published','paused'].includes(offer.status)&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'sold')}>Marcar como vendido</button>}<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Remover este anúncio? Ele deixará de aparecer na sua lista e no catálogo.'))update(offer,'removed')}}>Remover anúncio</button></>}</div></article>)}</div>
- {!offers.length&&<p className="account-notice">{admin?'Nenhum anúncio aguardando revisão.':'Seus anúncios enviados aparecerão aqui, inclusive ao acessar de outro aparelho.'}</p>}
- </>}</>}
+ return <section className="account-area">
+  <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do marketplace.':account?'Sua área de vendedor.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':'Quem compra navega sem cadastro. Entre para publicar e administrar suas ofertas.'}</p></div>
+  {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<p role="status" className="account-notice">{notice}</p>}
+  {!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
+    {register&&<label>Nome público<input name="name" required minLength={2} maxLength={80} autoComplete="name"/></label>}
+    <label>E-mail<input name="email" type="email" required maxLength={254} autoComplete="email"/></label>
+    <label>Senha<input name="password" type="password" required minLength={8} maxLength={128} autoComplete={register?'new-password':'current-password'} aria-label="Senha" aria-describedby="password-help"/><span id="password-help" className="field-help">8 a 128 caracteres. Recuperação de senha ainda indisponível.</span></label>
+    {register&&<><label>Bairro<select name="neighborhood" required><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label><label>WhatsApp<input name="whatsapp" type="tel" required maxLength={32} placeholder="(92) 99999-9999" autoComplete="tel"/></label><label className="consent"><input type="checkbox" name="acceptContact" required/>Autorizo a divulgação do nome e WhatsApp nos anúncios publicados.</label></>}
+    <button className="button primary" disabled={busy} type="submit">{busy?'Aguarde…':register?'Criar conta':'Entrar'}</button>
+    <button type="button" className="button outline" disabled={busy} onClick={()=>{setRegister(!register);setError('')}}>{register?'Já tenho conta':'Criar conta'}</button>
+   </form>:<>
+   <div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setOffers([]);setNotice('Você saiu da conta.')})}>Sair</button></div>
+   {admin&&account.role!=='admin'?<p className="local-note">Acesso restrito à administração.</p>:admin?<>
+    {stats&&<div className="stat-grid"><div className="stat-card"><strong>{stats.sellers}</strong><span>Contas</span></div><div className="stat-card"><strong>{stats.published}</strong><span>Anúncios públicos</span></div><div className="stat-card"><strong>{stats.listings}</strong><span>Anúncios registrados</span></div><div className="stat-card"><strong>{stats.reports}</strong><span>Denúncias abertas</span></div></div>}
+    <h2>Denúncias recebidas</h2>
+    {reports.length?<div className="draft-stack">{reports.map(report=><article className="panel" key={report.id}><span className="draft-status">{report.reason} · anúncio #{report.listingId}</span><h3>{report.title}</h3><p>{report.details||'Sem detalhes adicionais.'}</p><p>Status: {statuses[report.listingStatus]||report.listingStatus}</p><div className="account-toolbar"><button disabled={busy} className="button outline" onClick={()=>reviewReport(report,'dismissed')}>Arquivar denúncia</button><button disabled={busy} className="button danger" onClick={()=>reviewReport(report,'removed')}>Retirar anúncio</button>{report.sellerId&&<button disabled={busy} className="button outline" onClick={()=>{if(window.confirm('Suspender este vendedor?'))void execute(async()=>{await api('admin/sellers/'+report.sellerId,'POST',{status:'suspended'});await refresh();setNotice('Vendedor suspenso.')})}}>Suspender vendedor</button>}</div></article>)}</div>:<p className="account-notice">Nenhuma denúncia aberta.</p>}
+    <h2>Ofertas sinalizadas para revisão</h2>
+    {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">Em verificação</span><h3>{offer.title}</h3><p>{offer.description}</p><p>Vendedor: {offer.seller} · {offer.whatsapp} · {offer.sellerStatus==='approved'?'Contato verificado':'Contato não verificado'}</p><div className="account-toolbar">{offer.sellerStatus==='pending'&&<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Você confirmou que o vendedor controla o WhatsApp?'))void execute(async()=>{await api('moderation/'+offer.id+'/seller','POST',{confirmContact:true});await refresh()})}}>Confirmar vendedor</button>}<button className="button primary" disabled={busy||offer.sellerStatus!=='approved'} onClick={()=>moderate(offer,'published')}>Publicar</button><button className="button outline" disabled={busy} onClick={()=>moderate(offer,'rejected')}>Rejeitar</button></div></article>)}</div>:<p className="account-notice">Nenhuma oferta sinalizada.</p>}
+   </>:<>
+    <p className="account-notice">{account.status==='suspended'?'Conta suspensa.':'Ofertas comuns são publicadas automaticamente. Seu contato não recebe selo de verificado sem conferência.'}</p>
+    <div className="account-toolbar"><button className="button primary" disabled={busy} onClick={()=>{setEditing(null);setCategory('Alimentação');setShowForm(v=>!v)}}>{showForm?'Fechar formulário':'Publicar novo anúncio'}</button><a className="button outline" href={'#vendedor-'+account.id}>Meu perfil público</a>{account.role==='admin'&&<a className="button outline" href="#admin">Administração</a>}</div>
+    {showForm&&<form className="draft-form panel" onSubmit={submit} key={editing?.id||requestId}>
+     <h2>{editing?'Editar anúncio':'Publicar anúncio'}</h2>
+     <label>Título<input name="title" required minLength={5} maxLength={90} defaultValue={editing?.title||draft?.title}/></label>
+     <div className="form-row"><label>Categoria<select name="category" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></label><label>Condição<select name="condition" defaultValue={editing?.condition||draft?.condition||'Novo'}><option>Novo</option><option>Usado</option><option>Não aplicável</option></select></label></div>
+     <label>Preço em reais<input name="price" inputMode="decimal" maxLength={20} defaultValue={editing?.priceCents?((editing.priceCents/100).toFixed(2).replace('.',',')):draft?.priceCents?((draft.priceCents/100).toFixed(2).replace('.',',')):''}/><span className="field-help">Serviços podem ser sob orçamento.</span></label>
+     <label>Descrição<textarea name="description" required minLength={10} maxLength={2000} defaultValue={editing?.description||draft?.description}/></label>
+     <label>Bairro<select name="neighborhood" defaultValue={editing?.neighborhood||account.neighborhood}><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label>
+     <label>Atendimento e entrega<input name="fulfillment" required maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></label>
+     <label>Foto do anúncio (opcional)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp"/><span className="field-help">A foto é convertida no navegador para retirar metadados antes do envio. O upload exige armazenamento R2 configurado.</span></label>
+     <p className="field-help">Anuncie somente itens legais e verdadeiros. Ofertas suspeitas podem ser retidas e denunciadas.</p>
+     <button type="submit" className="button primary" disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</button>
+     {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{setEditing(null);setShowForm(false)}}>Cancelar edição</button>}
+    </form>}
+    <h2>Meus anúncios online</h2>
+    {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">{statuses[offer.status]||offer.status}</span><h3>{offer.title}</h3><strong>{formatBRL(offer.priceCents)}</strong><p>{offer.description}</p><p>{offer.fulfillment}</p><div className="account-toolbar"><button className="button outline" onClick={()=>edit(offer)} disabled={busy}>Editar</button>{offer.status==='published'&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'paused')}>Pausar</button>}{offer.status==='paused'&&<button className="button primary" disabled={busy} onClick={()=>update(offer,'published')}>Reativar</button>}{['published','paused'].includes(offer.status)&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'sold')}>Marcar vendido</button>}<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Remover este anúncio?'))update(offer,'removed')}}>Remover</button></div></article>)}</div>:<p className="account-notice">Você ainda não publicou nenhum anúncio.</p>}
+    <form className="draft-form panel profile-form" onSubmit={saveProfile}><h2>Editar meu perfil público</h2><label>Nome comercial<input value={profileName} onChange={e=>setProfileName(e.target.value)} minLength={2} maxLength={80} required/></label><label>Sobre você ou seu negócio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength={600}/></label><button className="button primary" disabled={busy}>Salvar perfil</button></form>
+   </>}
+  </>}
  </section>;
 }
