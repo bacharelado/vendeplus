@@ -8,6 +8,7 @@ on:
       - 'migrations/*.sql'
       - 'functions/**'
       - scripts/test-preview-accounts.mjs
+      - scripts/audit-real-account.mjs
       - tests/preview-database.test.mjs
   workflow_dispatch:
 permissions:
@@ -41,3 +42,20 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PREVIEW_URL: ${{ steps.conectar.outputs.preview_url }}
         run: node scripts/test-preview-accounts.mjs
+      - name: Instalar navegador Chromium de auditoria
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Auditar a conta real em navegador e D1 sem mocks
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PREVIEW_URL: ${{ steps.conectar.outputs.preview_url }}
+        run: node scripts/audit-real-account.mjs
+      - name: Guardar evidências da auditoria
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendeplus-auditoria-conta-real
+          path: artifacts/audit-real-account/
+          retention-days: 7
+          if-no-files-found: warn
