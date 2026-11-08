@@ -10,6 +10,8 @@ Em código: contas e sessões, catálogo D1, publicação automática de ofertas
 
 Regras simples de moderação não garantem identificar golpes. O VENDE+ não intermedeia pagamentos.
 
+IA está desativada. O botão Anunciar abre o fluxo de publicação diretamente; os campos têm exemplos e textos simples. O catálogo permite carregar mais anúncios e consultar um anúncio antigo pelo próprio ID.
+
 ## Instalação
 
 Node.js >= 22.12, Git e npm. Clone a branch feat/vendeplus-2.0 do repositório bacharelado/vendeplus, execute npm ci e npm run dev.
@@ -22,7 +24,7 @@ MARKETPLACE_DB está configurado para o banco D1 vendeplus-preview somente no am
 
 LISTING_IMAGES é o binding R2 opcional. Crie um bucket separado para prévia e associe o binding ao ambiente Preview em Workers & Pages > projeto VENDE+ > Settings > Bindings > Add > R2 bucket. Faça redeploy. Sem R2, anúncios sem foto funcionam e upload retorna 503.
 
-As fotos são convertidas pelo navegador para WebP antes do envio, limitadas a 3 MB pela API e acessíveis enquanto publicadas.
+As fotos são convertidas pelo navegador para PNG, limitadas a 3 MB e 1280 pixels por dimensão. O servidor decodifica e reescreve a imagem, limita a conta a 10 tentativas em 15 minutos e limpa arquivos substituídos sem referências. Fotos continuam acessíveis apenas enquanto o anúncio estiver publicado. Falhas de limpeza são informadas; objetos órfãos históricos ainda precisam de revisão.
 
 ## Segurança
 

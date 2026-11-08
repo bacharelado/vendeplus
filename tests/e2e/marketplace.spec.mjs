@@ -128,7 +128,7 @@ test('contato real fornecido gera somente um link sem envio automático',async({
 });
 
 test('admin exige acesso e cadastro apresenta os campos reais',async({page})=>{
-  await catalog(page);await page.goto('/#admin');await expect(page.getByRole('heading',{name:'Administração do marketplace.'})).toBeVisible();
+  await catalog(page);await page.goto('/#admin');await expect(page.getByRole('heading',{name:'Administração do site.'})).toBeVisible();
   await expect(page.getByRole('button',{name:/Aprovar|Ligar|Resolver/})).toHaveCount(0);
   await page.goto('/#cadastro');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
   await expect(page.getByRole('textbox',{name:'E-mail'})).toBeVisible();
@@ -168,8 +168,8 @@ test('conta publica anúncio e encerra sessão',async({page})=>{
  await page.route('**/api/account/listings',async route=>{if(route.request().method()==='POST'){sent=route.request().postDataJSON();offers=[{...sent,id:123,status:'published'}];return route.fulfill({status:201,contentType:'application/json',body:'{"id":123,"status":"published"}'})}return route.fulfill({contentType:'application/json',body:JSON.stringify({listings:offers})})});
  await page.route('**/api/account/profile',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({profile:{name:account.name,bio:''}})}));
  await page.route('**/api/account/logout',route=>route.fulfill({contentType:'application/json',body:'{"ok":true}'}));
- await page.goto('/#conta');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Meus anúncios.'})).toBeVisible();
- await page.getByRole('button',{name:'Publicar novo anúncio'}).click();await page.getByLabel('O que você está vendendo?',{exact:true}).fill('Item de teste automatizado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Conte sobre o produto',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Como será a entrega?').fill('Retirada a combinar');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();await expect(page.locator('.account-offer')).toContainText('Publicado');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
+ await page.goto('/#anunciar');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Meus anúncios.'})).toBeVisible();
+ await page.getByLabel('O que você está vendendo?',{exact:true}).fill('Item de teste automatizado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Conte sobre o produto',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Como será a entrega?').fill('Retirada a combinar');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();await expect(page.locator('.account-offer')).toContainText('Publicado');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
  await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
 });
 
@@ -189,4 +189,19 @@ test('escolher foto não chama IA nem altera os campos',async({page})=>{
  await expect(page.getByRole('textbox',{name:'O que você está vendendo?'})).toHaveValue('Mesa anunciada manualmente');
  await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
  await expect(page).toHaveURL(/#painel$/);expect(calls).toBe(0);
+});
+
+test('link direto abre anúncio que não estava no catálogo carregado',async({page})=>{
+ await catalog(page,[]);
+ await page.route('**/api/listings?id=999',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:[{...items[0],id:999,title:'Anúncio antigo ainda publicado'}]})}));
+ await page.goto('/#anuncio-999');
+ await expect(page.getByRole('heading',{name:'Anúncio antigo ainda publicado',exact:true})).toBeVisible();
+});
+test('botão carrega a página seguinte sem repetir anúncios',async({page})=>{
+ await catalog(page,[]);
+ await page.route('**/api/listings**',route=>{const next=new URL(route.request().url()).searchParams.has('before');return route.fulfill({contentType:'application/json',body:JSON.stringify(next?{listings:[{...items[0],id:999,title:'Anúncio da próxima página'}]}:{listings:items,nextCursor:'1:1'})})});
+ await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(2);
+ await page.getByRole('button',{name:'Ver mais anúncios',exact:true}).click();
+ await expect(page.locator('.listing-card')).toHaveCount(3);
+ await expect(page.getByRole('button',{name:'Ver mais anúncios',exact:true})).toHaveCount(0);
 });
