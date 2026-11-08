@@ -117,6 +117,41 @@ export async function handleAccount({request,env}:Context){
    await db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,String(data.status)).run();
    return reply({ok:true});
   }
+  if(path==='/admin/stats'&&request.method==='GET'){
+    if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
+    const sellers=await db.prepare('SELECT COUNT(*) AS total FROM marketplace_accounts').first();
+    const published=await db.prepare("SELECT COUNT(*) AS total FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status='published' AND s.status!='suspended'").first();
+    const reports=await db.prepare("SELECT COUNT(*) AS total FROM marketplace_reports WHERE status='open'").first();
+    const listings=await db.prepare("SELECT COUNT(*) AS total FROM marketplace_listings WHERE status!='removed'").first();
+    return reply({sellers:Number(sellers?.total||0),published:Number(published?.total||0),reports:Number(reports?.total||0),listings:Number(listings?.total||0)});
+  }
+  if(path==='/admin/reports'&&request.method==='GET'){
+    if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
+    const queue=await db.prepare("SELECT r.id,r.listing_id AS listingId,r.reason,r.details,r.created_at AS createdAt,l.title,l.status AS listingStatus FROM marketplace_reports r JOIN marketplace_listings l ON l.id=r.listing_id WHERE r.status='open' ORDER BY r.created_at DESC LIMIT 100").all();
+    return reply({reports:queue.results});
+  }
+  const reportReview=/^\/admin\/reports\/(\d+)$/.exec(path);
+  if(reportReview&&request.method==='POST'){
+    if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
+    if(!['dismissed','removed'].includes(String(data.decision)))throw new Failure('Decisão inválida.');
+    const id=Number(reportReview[1]);
+    const report=await db.prepare("SELECT listing_id FROM marketplace_reports WHERE id=? AND status='open'").bind(id).first();
+    if(!report)throw new Failure('Denúncia não encontrada.',404);
+    const statements=[db.prepare("UPDATE marketplace_reports SET status='closed',decision=?,resolved_by=?,resolved_at=unixepoch() WHERE id=? AND status='open'").bind(data.decision,account.id,id)];
+    if(data.decision==='removed')statements.push(db.prepare("UPDATE marketplace_listings SET status='removed' WHERE id=? AND status!='removed'").bind(report.listing_id));
+    await db.batch(statements);
+    return reply({ok:true});
+  }
+  const adminSeller=/^\/admin\/sellers\/([a-f0-9-]{36})$/.exec(path);
+  if(adminSeller&&request.method==='POST'){
+    if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
+    if(adminSeller[1]===account.id)throw new Failure('Não é permitido bloquear a própria conta.',409);
+    if(!['suspended','approved'].includes(String(data.status)))throw new Failure('Status inválido.');
+    const update=await db.prepare('UPDATE marketplace_sellers SET status=? WHERE id=?').bind(data.status,adminSeller[1]).run();
+    if(!update.meta.changes)throw new Failure('Vendedor não encontrado.',404);
+    if(data.status==='suspended')await db.prepare('DELETE FROM marketplace_sessions WHERE account_id=?').bind(adminSeller[1]).run();
+    return reply({ok:true});
+  }
   if(path.startsWith('/moderation')){
    if(account.role!=='admin')throw new Failure('Acesso restrito à administração.',403);
    if(path==='/moderation'&&request.method==='GET')return reply({listings:(await db.prepare("SELECT l.id,l.title,l.description,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,s.display_name AS seller,s.whatsapp,s.status AS sellerStatus FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status='pending' ORDER BY l.created_at LIMIT 100").all()).results});
