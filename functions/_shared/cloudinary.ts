@@ -11,12 +11,12 @@ const idFromKey=(key:string)=>'vendeplus/'+key.slice(2,-4);
 const signature=(params:Record<string,string>,secret:string)=>createHash('sha1').update(Object.entries(params).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('&')+secret).digest('hex');
 
 export function cloudinaryReady(env:CloudinaryEnv){
- return !!env.CLOUDINARY_CLOUD_NAME&&cloudPattern.test(env.CLOUDINARY_CLOUD_NAME)&&!!env.CLOUDINARY_API_KEY&&/^[0-9]+$/.test(env.CLOUDINARY_API_KEY)&&!!env.CLOUDINARY_API_SECRET;
+ return cloudPattern.test(env.CLOUDINARY_CLOUD_NAME?.trim()||'')&&/^[0-9]+$/.test(env.CLOUDINARY_API_KEY?.trim()||'')&&!!env.CLOUDINARY_API_SECRET?.trim();
 }
 export function cloudinaryKey(key:string){return keyPattern.test(key)}
 function credentials(env:CloudinaryEnv){
  if(!cloudinaryReady(env))throw new Error('Armazenamento de fotos não configurado.');
- return {name:env.CLOUDINARY_CLOUD_NAME!,apiKey:env.CLOUDINARY_API_KEY!,secret:env.CLOUDINARY_API_SECRET!};
+ return {name:env.CLOUDINARY_CLOUD_NAME!.trim(),apiKey:env.CLOUDINARY_API_KEY!.trim(),secret:env.CLOUDINARY_API_SECRET!.trim()};
 }
 function signedForm(params:Record<string,string>,apiKey:string,secret:string){
  const form=new FormData();
