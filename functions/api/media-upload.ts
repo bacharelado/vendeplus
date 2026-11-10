@@ -30,6 +30,11 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
   const now=Math.floor(Date.now()/1000),rateKey=createHash('sha256').update('upload:'+user.id).digest('hex');
   const quota=await db.prepare('INSERT INTO marketplace_rate_limits(key,attempts,expires_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN expires_at<=? THEN 1 ELSE attempts+1 END,expires_at=CASE WHEN expires_at<=? THEN excluded.expires_at ELSE expires_at END RETURNING attempts').bind(rateKey,now+900,now,now).first();
   if(Number(quota?.attempts)>10)return json({error:'Você enviou muitas fotos. Aguarde 15 minutos e tente novamente.'},429);
+  const reader=request.body?.getReader();if(!reader)return json({error:'Escolha uma foto.'},400);
+  const chunks:Uint8Array[]=[];let size=0;
+  for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>3145728){await reader.cancel();return json({error:'Foto muito grande. Escolha uma imagem menor.'},413)}chunks.push(value)}
+  const data=new Uint8Array(size);let offset=0;for(const chunk of chunks){data.set(chunk,offset);offset+=chunk.length}
+  let imageData:Uint8Array;try{imageData=cleanPhoto(data)}catch{return json({error:'Não foi possível abrir esta foto. Escolha outra imagem.'},415)}
   if(useCloudinary){
    const allowed=async(label:string,limit:number,ttl:number)=>{
     const key=createHash('sha256').update('cloudinary:'+label).digest('hex');
@@ -38,11 +43,6 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
    };
    if(!await allowed('global',200,2592000)||!await allowed('seller:'+user.id,15,2592000))return json({error:'Limite de fotos do piloto atingido. Contate a administração.'},429);
   }
-  const reader=request.body?.getReader();if(!reader)return json({error:'Escolha uma foto.'},400);
-  const chunks:Uint8Array[]=[];let size=0;
-  for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>3145728){await reader.cancel();return json({error:'Foto muito grande. Escolha uma imagem menor.'},413)}chunks.push(value)}
-  const data=new Uint8Array(size);let offset=0;for(const chunk of chunks){data.set(chunk,offset);offset+=chunk.length}
-  let imageData:Uint8Array;try{imageData=cleanPhoto(data)}catch{return json({error:'Não foi possível abrir esta foto. Escolha outra imagem.'},415)}
   const key=(useCloudinary?'c-':'')+crypto.randomUUID()+'.png',image=new URL('/api/media/'+key,request.url).href;
   if(useCloudinary)await uploadCloudinary(env,key,imageData);
   else await bucket!.put(key,imageData,{httpMetadata:{contentType:'image/png'}});
