@@ -13,6 +13,7 @@ test('Cloudinary só fica disponível com credenciais de servidor completas',()=
  assert.equal(cloudinaryReady({...env,CLOUDINARY_API_SECRET:undefined}),false);
  assert.equal(cloudinaryReady({...env,CLOUDINARY_CLOUD_NAME:'evil.example/'}),false);
  assert.equal(cloudinaryReady(env),true);
+ assert.equal(cloudinaryReady({...env,CLOUDINARY_API_KEY:' 123456\n',CLOUDINARY_CLOUD_NAME:' vendeplus-test ',CLOUDINARY_API_SECRET:' secret-test-only\n'}),true);
  assert.equal(cloudinaryKey(key),true);
  assert.equal(cloudinaryKey('../123.png'),false);
 });
