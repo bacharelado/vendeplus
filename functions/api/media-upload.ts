@@ -10,7 +10,18 @@ function ownedKey(value:unknown,origin:string){
  try{const url=new URL(value);return url.origin===origin&&/^\/api\/media\/(?:c-)?[a-f0-9-]{36}\.(png|webp)$/.test(url.pathname)&&!url.search&&!url.hash?url.pathname.slice('/api/media/'.length):null}catch{return null}
 }
 export async function onRequest({request,env}:{request:Request;env:Env}){
- if(request.method==='GET')return json({available:!!env.MARKETPLACE_DB&&(!!env.LISTING_IMAGES||cloudinaryReady(env))});
+ if(request.method==='GET'){
+  const available=!!env.MARKETPLACE_DB&&(!!env.LISTING_IMAGES||cloudinaryReady(env));
+  if(new URL(request.url).searchParams.get('check')==='preview'){
+   return json({available,checks:{
+    database:!!env.MARKETPLACE_DB,
+    cloudNameFormat:/^[a-z0-9_-]{1,100}$/i.test(env.CLOUDINARY_CLOUD_NAME?.trim()||''),
+    apiKeyFormat:/^[0-9]+$/.test(env.CLOUDINARY_API_KEY?.trim()||''),
+    apiSecretPresent:!!env.CLOUDINARY_API_SECRET?.trim()
+   }});
+  }
+  return json({available});
+ }
  if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'GET, POST'}});
  if(!env.MARKETPLACE_DB&&request.method==='POST')return json({error:'O banco de dados está indisponível.'},503);
  if(!env.MARKETPLACE_DB||(!env.LISTING_IMAGES&&!cloudinaryReady(env)))return json({error:'Não foi possível salvar fotos agora. Tente mais tarde.'},503);
