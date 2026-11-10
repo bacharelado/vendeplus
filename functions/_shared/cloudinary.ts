@@ -28,11 +28,11 @@ function signedForm(params:Record<string,string>,apiKey:string,secret:string){
 export async function uploadCloudinary(env:CloudinaryEnv,key:string,bytes:Uint8Array){
  if(!cloudinaryKey(key)||bytes.length>3145728||!bytes.length)throw new Error('Foto inválida.');
  const {name,apiKey,secret}=credentials(env);
- const params={overwrite:'false',public_id:idFromKey(key),timestamp:String(Math.floor(Date.now()/1000)),type:'authenticated'};
+ const params={overwrite:'false',public_id:idFromKey(key),timestamp:String(Math.floor(Date.now()/1000))};
  const form=signedForm(params,apiKey,secret);
  const copy=new Uint8Array(bytes.length);copy.set(bytes);
  form.set('file',new Blob([copy.buffer],{type:'image/png'}),'photo.png');
- const response=await fetch('https://api.cloudinary.com/v1_1/'+name+'/image/upload',{method:'POST',body:form,signal:AbortSignal.timeout(20000)});
+ const response=await fetch('https://api.cloudinary.com/v1_1/'+name+'/image/authenticated',{method:'POST',body:form,signal:AbortSignal.timeout(20000)});
  if(!response.ok)throw new Error('Cloudinary recusou a fotografia.');
  const result=await response.json() as Record<string,unknown>;
  if(result.public_id!==params.public_id||result.type!=='authenticated'||result.resource_type!=='image'||result.format!=='png')throw new Error('Resposta inesperada do armazenamento.');
