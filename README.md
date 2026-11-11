@@ -1,57 +1,91 @@
-# VENDE+ 2.0 — APOCALYPTIC
+# VENDE+ — Marketplace de Poranga e Jacarezinho
 
-Marketplace hiperlocal em desenvolvimento para Poranga I, Poranga II e Jacarezinho, Itacoatiara-AM.
+Produto da APOCALYPTIC para aproximar compradores e vendedores de Poranga I, Poranga II e Jacarezinho, em Itacoatiara-AM. Os compradores exploram anúncios sem conta; os vendedores utilizam contas próprias e podem conversar com interessados diretamente pelo WhatsApp. **O VENDE+ não intermedeia pagamentos ou entregas.**
 
-## Situação
+## Versão oficial e ambientes
 
-A branch feat/vendeplus-2.0 concentra a reformulação. A main e a produção não devem ser alteradas sem testes e autorização.
+- **Site oficial (Cloudflare Pages):** https://vendeplus.pages.dev/
+- **Código oficial:** branch `main`, no repositório `bacharelado/vendeplus`.
+- **Prévia:** branches e pull requests do Cloudflare Pages, com banco `vendeplus-preview` separado do banco de produção `vendeplus-production`.
+- **Fluxo de atualização:** branch → pull request → testes de qualidade e Playwright → revisão → merge em `main` → Cloudflare Pages.
+- O pipeline **Workers Builds** é separado do Pages e vem apresentando falha de configuração relacionada a `previews`. O sucesso de Pages não prova o sucesso de Workers Builds; não confundir os dois.
+- Verificar o resultado da Cloudflare Pages após cada merge. Não alterar segredos, dados reais, migrar bancos ou contratar serviços por causa de um deploy.
 
-Em código: contas e sessões, catálogo D1, publicação automática de ofertas comuns, retenção simples de ofertas suspeitas, edição de anúncios próprios, perfil público, filtros por bairro, denúncias, indicadores administrativos e fotos opcionais via Cloudinary autenticado, com compatibilidade para imagens antigas no R2.
+## Arquitetura
 
-Regras simples de moderação não garantem identificar golpes. O VENDE+ não intermedeia pagamentos.
+| Camada | Tecnologia e responsabilidade |
+| --- | --- |
+| Interface | React, TypeScript, CSS, Vite; navegação adaptada a celular |
+| Backend | Cloudflare Pages Functions em `functions/api` |
+| Banco | Cloudflare D1/SQL; anúncios, contas, sessões, moderação e denúncias |
+| Imagens | Cloudinary autenticado para novos uploads e compatibilidade com R2 para arquivos existentes quando configurado |
+| Negociação | Link direto para o WhatsApp do vendedor, sem checkout |
+| Qualidade | Node test, testes SQL, TypeScript/build e Playwright desktop/mobile |
 
-IA está desativada. O botão Anunciar abre o fluxo de publicação diretamente; os campos têm exemplos e textos simples. O catálogo permite carregar mais anúncios e consultar um anúncio antigo pelo próprio ID.
+### Principais caminhos
 
-## Instalação
+- `#inicio`: vitrine e busca inicial.
+- `#catalogo`: catálogo público e filtros.
+- `#anuncio-ID`: detalhes do anúncio e contato (links com fragmento; não são páginas HTML individualizadas para mecanismos de busca).
+- `#anunciar`: entrada orientada para vender, com cadastro ou login e formulário de anúncio.
+- `#conta`: acesso à conta e aos anúncios do vendedor.
+- `#admin`: administração com autenticação e perfil autorizado.
+- `#painel` e `#publicar`: rascunhos **locais ao navegador**, que não são anúncios públicos.
 
-Node.js >= 22.12, Git e npm. Clone a branch feat/vendeplus-2.0 do repositório bacharelado/vendeplus, execute npm ci e npm run dev.
+### APIs relevantes
 
-O Vite local não executa Pages Functions; para APIs completas use a prévia Cloudflare com bindings de teste.
+- `GET /api/listings`: catálogo público, consulta por ID e paginação por cursor; resultados retornam até 200 itens por chamada.
+- `/api/account/*`: cadastro, login, sessão, publicação, edição, pausa, reativação e administração conforme autorização.
+- `GET/POST /api/media-upload`: disponibilidade e upload de imagens associado a anúncio do proprietário.
+- `GET /api/media/*`: entrega de imagem apenas quando vinculada a anúncio publicado permitido.
+- `GET /api/sellers/*`: perfil público e anúncios publicados.
+- `POST /api/reports`: registro de denúncia.
+- `POST /api/photo-analyze`: **desativado**. Não há preenchimento automático com IA no produto atual.
 
-## Cloudflare e banco de dados
+## Executar e testar
 
-MARKETPLACE_DB está configurado para o banco D1 vendeplus-preview somente no ambiente de prévia. Migrações 0001, 0002 e 0003 são incrementais; o workflow da branch 2.0 confere que a produção não muda.
+Requisitos: Git, Node.js 22.12+ e npm.
 
-LISTING_IMAGES é o binding R2 opcional. Crie um bucket separado para prévia e associe o binding ao ambiente Preview em Workers & Pages > projeto VENDE+ > Settings > Bindings > Add > R2 bucket. Faça redeploy. Sem R2, anúncios sem foto funcionam e upload retorna 503.
+```bash
+git clone https://github.com/bacharelado/vendeplus.git
+cd vendeplus
+npm ci
+npm run dev
+```
 
-As fotos são convertidas pelo navegador para PNG, limitadas a 3 MB e 1280 pixels por dimensão. O servidor decodifica e reescreve a imagem, limita a conta a 10 tentativas em 15 minutos e limpa arquivos substituídos sem referências. Fotos continuam acessíveis apenas enquanto o anúncio estiver publicado. Falhas de limpeza são informadas; objetos órfãos históricos ainda precisam de revisão.
+O servidor Vite local **não executa** Cloudflare Pages Functions; para fluxo completo com D1 e imagens, utilizar prévia isolada com bindings autorizados.
 
-## Fotografias com Cloudinary gratuito
-
-O armazenamento recomendado para novos uploads é o Cloudinary Image & Video API no plano Free (sem cartão, sujeito aos limites e termos vigentes). Não habilite plano pago. O D1 continua sendo o banco de anúncios. Se as credenciais do Cloudinary estiverem presentes, novos uploads usam Cloudinary; arquivos R2 existentes continuam servidos pelo seu binding original.
-
-Configure em **Workers & Pages > vendeplus > Settings > Variables and Secrets** no ambiente **Preview** antes de produção:
-- `CLOUDINARY_CLOUD_NAME`: nome do produto Cloudinary (variável)
-- `CLOUDINARY_API_KEY`: chave da API (variável ou segredo)
-- `CLOUDINARY_API_SECRET`: segredo da API (obrigatoriamente **Encrypt**)
-
-Jamais coloque essas informações no GitHub, no código do navegador, em `VITE_*`, em prints ou neste chat. Não é necessário criar upload preset público. Faça novo deploy da prévia após configurar os valores. A rota `/api/media-upload` retorna `{"available":true}` somente quando há D1 e um provedor de fotos habilitado.
-
-O servidor exige sessão de vendedor, propriedade do anúncio, origem válida e foto PNG reprocessada de até 3 MB. O upload é assinado no servidor, a imagem é armazenada como **authenticated** no Cloudinary, e a entrega passa por `/api/media/...` com verificação de anúncio publicado. A chave da API nunca chega ao navegador. Há controles de 10 tentativas a cada 15 minutos, no máximo 15 uploads por conta a cada 30 dias e no máximo 200 uploads totais a cada 30 dias para o Cloudinary.
-
-O limite técnico de uploads não controla sozinho todos os créditos: visitantes também consomem banda de imagens. Monitore o painel Usage do Cloudinary e mantenha o plano gratuito. Fotos removidas/substituídas são excluídas quando possível; falhas de limpeza precisam de revisão. A configuração de produção exige testes em prévia e autorização explícita do CEO.
-
-## Segurança
-
-A conta admin é promovida fora do cadastro público. APIs exigem sessão, autorização do proprietário e verificação no servidor. Vendedores suspensos não têm sessão ativa e seus anúncios deixam de ser exibidos. Há limites de tentativas e de publicação no D1.
-
-Pendências para operação real: recuperação de senha, verificação automática do contato, política de privacidade, testes de carga, monitoramento de abuso e contestação de denúncias.
-
-## Testes
-
+```bash
 npm test
 python3 tests/schema_test.py
 npm run build
 npm run test:e2e
+```
 
-Os testes remotos nunca devem publicar ofertas de demonstração no catálogo; contas temporárias e seus anúncios retidos são removidos após os testes.
+Os testes devem evitar alterações em contas/anúncios reais. Testes de integração utilizam contas e identificadores técnicos, com limpeza dos registros temporários.
+
+## Proteções e limites
+
+- Senhas armazenadas com scrypt e sal individual; sessões aleatórias em cookies `HttpOnly`, `Secure` e `SameSite=Lax`.
+- APIs de escrita verificam sessão, origem, propriedade do anúncio, tamanho dos pedidos e limites de requisição.
+- O upload exige imagem válida, reprocessamento no servidor e controle de cotas; a imagem do anúncio pode ser removida quando deixar de estar referenciada.
+- Anúncios comuns podem ser publicados automaticamente; um filtro simples sinaliza alguns conteúdos para revisão. **Isso não é verificação de vendedor, certificação antifraude ou garantia de negociação.**
+- Cotas do piloto de Cloudinary: 10 tentativas a cada 15 minutos; 15 novos uploads por conta e 200 uploads globais a cada 30 dias. O uso de banda também gera consumo e deve ser acompanhado.
+
+## Pendências abertas
+
+1. Recuperação segura de senha por canal confiável, sem atalhos que permitam tomada de conta.
+2. Verificação do controle do telefone/WhatsApp e política adequada para o estado de vendedor pendente.
+3. Termos, política de privacidade, retenção e exclusão de dados em conformidade com as exigências aplicáveis.
+4. Tratamento de denúncias, recurso de contestação, limites de abuso e autenticação forte para administração.
+5. Testes de carga, monitoramento de saúde/custos, backup e recuperação.
+6. Descoberta de anúncios em mecanismos de busca: as rotas por `#` não fornecem HTML individual indexável.
+7. Estudo de fotos múltiplas sem ultrapassar os recursos gratuitos.
+8. Testes observacionais com compradores e vendedores reais e indicadores de adoção.
+9. Diagnóstico do Workers Builds separado para eliminar a falha persistente sem prejudicar o deploy de Pages.
+
+## Regras de operação
+
+Orçamento autorizado: **R$ 0**. Não ativar serviços pagos ou expor chaves do Cloudinary, tokens da Cloudflare ou dados pessoais em commits e relatórios. Usar o ciclo **programar → testar → revisar → publicar**, com consentimento e escopo controlado para testes reais.
+
+Ver `docs/SEGURANCA.md`, `docs/DECISOES.md` e `docs/OPERACAO-PILOTO.md` para riscos e planejamento.
