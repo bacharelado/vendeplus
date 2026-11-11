@@ -4,6 +4,8 @@ on:
     branches: [feat/cloudinary-fotos-free]
     paths:
       - 'functions/**'
+      - 'src/**'
+      - 'tests/fixtures/**'
       - scripts/audit-cloudinary-live.mjs
       - .github/workflows/cloudinary-live.yml
 permissions:
