@@ -257,3 +257,37 @@ test('pesquisa rápida de eletrônicos abre catálogo filtrado',async({page})=>{
   await expect(page).toHaveURL(/#catalogo$/);
   await expect(page.locator('.filter-feedback')).toContainText('Eletrônicos');
 });
+
+
+test('metadados do VENDE+ descrevem o projeto sem inventar ofertas',async({page})=>{
+  await catalog(page);await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('lang','pt-BR');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href','https://vendeplus.pages.dev/');
+  await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute('content','VENDE+');
+  await expect(page.locator('meta[property="og:locale"]')).toHaveAttribute('content','pt_BR');
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content',/Poranga e Jacarezinho/);
+});
+
+test('aba usa título verdadeiro do anúncio aberto',async({page})=>{
+  await catalog(page,items);await page.goto('/#anuncio-101');
+  await expect(page.getByRole('heading',{name:'Mesa de teste',exact:true})).toBeVisible();
+  await expect(page).toHaveTitle('Mesa de teste | VENDE+');
+});
+
+test('denúncia revela formulário, limpa dados após sucesso e evita envio duplicado',async({page})=>{
+  await catalog(page,items);
+  let sent;
+  await page.route('**/api/reports',route=>{sent=route.request().postDataJSON();return route.fulfill({status:201,contentType:'application/json',body:'{"ok":true}'})});
+  await page.goto('/#anuncio-101');
+  const button=page.getByRole('button',{name:'Denunciar este anúncio'});
+  await button.click();
+  await expect(page.getByRole('button',{name:'Fechar denúncia'})).toHaveAttribute('aria-expanded','true');
+  await page.getByLabel('Motivo').selectOption('fraud');
+  await page.getByLabel('Detalhes (opcional)').fill('Mensagem de teste sem dados pessoais.');
+  await page.getByRole('button',{name:'Enviar denúncia'}).click();
+  await expect(page.getByRole('status').filter({hasText:'Denúncia recebida'})).toBeVisible();
+  expect(sent).toEqual({listingId:101,reason:'fraud',details:'Mensagem de teste sem dados pessoais.'});
+  await button.click();
+  await expect(page.getByLabel('Motivo')).toHaveValue('spam');
+  await expect(page.getByLabel('Detalhes (opcional)')).toHaveValue('');
+});
