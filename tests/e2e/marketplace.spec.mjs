@@ -22,7 +22,7 @@ test('vitrine pública não contém avisos de demonstração nem anúncios inven
   await expect(page.locator('.demo-banner')).toHaveCount(0);
   await expect(page.locator('header a.seller-cta')).toHaveAttribute('href','#conta');
   await expect(page.locator('main').getByRole('link',{name:'Publicar meu anúncio'})).toHaveAttribute('href','#conta');
-  await expect(page.locator('.mobile-bottom').getByRole('link',{name:'Anunciar'})).toHaveAttribute('href','#conta');
+  await expect(page.locator('.mobile-bottom a[href="#conta"]')).toHaveText('Anunciar');
   if(page.viewportSize()?.width>=761){
     await expect(page.locator('header a.seller-cta')).toBeVisible();
   }else{
