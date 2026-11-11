@@ -106,7 +106,8 @@ export function App(){
     return ()=>{disposed=true;controller.abort();clearTimeout(timer)};
   },[refresh]);
   useEffect(()=>{const update=(event:StorageEvent)=>{if(event.key==='vendeplus:drafts:v1'||event.key===null){try{setDrafts(readDrafts(localStorage))}catch{}}};window.addEventListener('storage',update);return ()=>window.removeEventListener('storage',update)},[]);
-  useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda no Poranga e Jacarezinho',catalogo:'Encontre no bairro',anunciar:'Publicar anúncio',publicar:'Prepare seu anúncio',painel:'Meus rascunhos',conta:'Minha conta',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor','como-funciona':'Como funciona'};document.title=`${titles[route.name]||'VENDE+'} | VENDE+`},[route.name]);
+  useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda em Poranga e Jacarezinho',catalogo:'Encontre no bairro',anunciar:'Publicar anúncio',publicar:'Prepare seu anúncio',painel:'Meus rascunhos',conta:'Minha conta',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor','como-funciona':'Como funciona'};document.title=`${titles[route.name]||'VENDE+'} | VENDE+`},[route.name]);
+  useEffect(()=>{if(route.name==='anuncio'&&detail.kind==='ready'&&detail.id===route.id&&detail.listing){document.title=`${detail.listing.title} | VENDE+`}},[route.name,route.id,detail]);
   const changeTheme=()=>{setDark(current=>{try{localStorage.setItem('vendeplus:theme',current?'light':'dark')}catch{}return !current})};
   const reset=()=>{setQuery('');setCategory('Todas');setCondition('Todas');setNeighborhood('Todos');setOrder('recentes')};
   const browse=(nextCategory='Todas')=>{reset();setCategory(nextCategory);location.hash='catalogo'};
