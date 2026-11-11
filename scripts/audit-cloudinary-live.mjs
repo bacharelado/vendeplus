@@ -81,9 +81,9 @@ try{
   const context=await browser.newContext({viewport});const page=await context.newPage();
   await page.goto(origin+'/#anuncio-'+id);
   await expect(page.getByRole('heading',{name:title+' EDITADO',exact:true})).toBeVisible();
-  const rendered=page.locator('img').filter({visible:true});
-  assert.ok(await rendered.count());
-  assert.ok(await rendered.evaluateAll(images=>images.some(im=>im.complete&&im.naturalWidth===320&&im.naturalHeight===240)));
+  const rendered=page.locator('img[src="'+image+'"]');
+  await expect(rendered).toBeVisible();
+  await expect.poll(()=>rendered.evaluate(im=>im.complete&&im.naturalWidth===320&&im.naturalHeight===240),{timeout:15000}).toBe(true);
   await page.screenshot({path:folder+'/'+name+'.png',fullPage:true});
   await context.close();
  }
@@ -104,7 +104,10 @@ finally{
  try{
   for(let i=0;i<listings.length;i++){
    const found=await query('SELECT status FROM marketplace_listings WHERE id=? AND seller_id=?',[listings[i],accounts[0]]);
-   if(found?.[0]?.results?.[0]?.status!=='removed')await request('/api/account/listings/'+listings[i],{method:'PATCH',body:{status:'removed'},cookie:sessions[0]});
+   if(found?.[0]?.results?.[0]?.status!=='removed'){
+    const removed=await request('/api/account/listings/'+listings[i],{method:'PATCH',body:{status:'removed'},cookie:sessions[0]});
+    assert.equal(removed.status,200);assert.ok(!removed.body.warning,'Foto QA pendente de limpeza; preservar registro para revisão.');
+   }
   }
   for(let i=0;i<emails.length;i++){
    const found=await query('SELECT id FROM marketplace_accounts WHERE email=?',[emails[i]]);
