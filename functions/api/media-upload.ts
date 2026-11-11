@@ -32,12 +32,15 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
  const id=Number(new URL(request.url).searchParams.get('listingId'));
  if(!Number.isSafeInteger(id)||id<=0)return json({error:'Anúncio inválido.'},400);
  const db=env.MARKETPLACE_DB,bucket=env.LISTING_IMAGES,useCloudinary=cloudinaryReady(env);
+ let phase='session';
  const remove=async(key:string)=>{if(cloudinaryKey(key))await deleteCloudinary(env,key);else if(bucket)await bucket.delete(key);else throw new Error('Armazenamento anterior indisponível.')};
  try{
   const user=await session(db,request);
   if(!user)return json({error:'Entre na sua conta para enviar a foto.'},401);
+  phase='listing_lookup';
   const listing=await db.prepare("SELECT id,image_url AS image FROM marketplace_listings WHERE id=? AND seller_id=? AND status NOT IN ('removed','rejected')").bind(id,user.id).first();
   if(!listing)return json({error:'Anúncio não encontrado.'},404);
+  phase='rate_limit';
   const now=Math.floor(Date.now()/1000),rateKey=createHash('sha256').update('upload:'+user.id).digest('hex');
   const quota=await db.prepare('INSERT INTO marketplace_rate_limits(key,attempts,expires_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN expires_at<=? THEN 1 ELSE attempts+1 END,expires_at=CASE WHEN expires_at<=? THEN excluded.expires_at ELSE expires_at END RETURNING attempts').bind(rateKey,now+900,now,now).first();
   if(Number(quota?.attempts)>10)return json({error:'Você enviou muitas fotos. Aguarde 15 minutos e tente novamente.'},429);
@@ -45,6 +48,7 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
   const chunks:Uint8Array[]=[];let size=0;
   for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>3145728){await reader.cancel();return json({error:'Foto muito grande. Escolha uma imagem menor.'},413)}chunks.push(value)}
   const data=new Uint8Array(size);let offset=0;for(const chunk of chunks){data.set(chunk,offset);offset+=chunk.length}
+  phase='image_validation';
   let imageData:Uint8Array;try{imageData=cleanPhoto(data)}catch{return json({error:'Não foi possível abrir esta foto. Escolha outra imagem.'},415)}
   if(useCloudinary){
    const allowed=async(label:string,limit:number,ttl:number)=>{
@@ -54,11 +58,13 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
    };
    if(!await allowed('global',200,2592000)||!await allowed('seller:'+user.id,15,2592000))return json({error:'Limite de fotos do piloto atingido. Contate a administração.'},429);
   }
+  phase='provider_upload';
   const key=(useCloudinary?'c-':'')+crypto.randomUUID()+'.png',image=new URL('/api/media/'+key,request.url).href;
   if(useCloudinary)await uploadCloudinary(env,key,imageData);
   else await bucket!.put(key,imageData,{httpMetadata:{contentType:'image/png'}});
   // Compare the previous image as well as ownership: concurrent edits must not
   // overwrite one another and leave an unreferenced object behind.
+  phase='database_update';
   let changed=false;
   try{
    const result=await db.prepare("UPDATE marketplace_listings SET image_url=? WHERE id=? AND seller_id=? AND image_url IS ? AND status NOT IN ('removed','rejected')").bind(image,id,user.id,listing.image??null).run();
@@ -69,11 +75,16 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
    return json({error:'Não foi possível confirmar a foto. Atualize seus anúncios antes de tentar novamente.'},503);
   }
   if(!changed){await remove(key);return json({error:'O anúncio mudou. Atualize a página e tente novamente.'},409)}
+  phase='prior_image_cleanup';
   const previous=ownedKey(listing.image,origin);
   if(previous){
    const referenced=await db.prepare('SELECT id FROM marketplace_listings WHERE image_url=?').bind(listing.image).first();
    if(!referenced){try{await remove(previous)}catch{return json({ok:true,image,warning:'Foto salva. A limpeza da foto anterior está pendente.'})}}
   }
   return json({ok:true,image});
- }catch{return json({error:'Não foi possível salvar a foto. Tente novamente.'},503)}
+ }catch(error){
+  const kind=error instanceof Error&&['TimeoutError','AbortError','TypeError'].includes(error.name)?error.name:'UnhandledError';
+  console.error('VENDEPLUS_PHOTO_UPLOAD_FAILURE',{phase,kind});
+  return json({error:'Não foi possível salvar a foto. Tente novamente.'},503);
+ }
 }
