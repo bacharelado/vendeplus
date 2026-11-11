@@ -20,9 +20,9 @@ test('vitrine pública não contém avisos de demonstração nem anúncios inven
   await expect(page.locator('body')).not.toContainText(/demonstração|simulação|fictício|Vendedor de demonstração/i);
   await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
   await expect(page.locator('.demo-banner')).toHaveCount(0);
-  await expect(page.locator('header a.seller-cta')).toHaveAttribute('href','#conta');
-  await expect(page.locator('main').getByRole('link',{name:'Publicar meu anúncio'})).toHaveAttribute('href','#conta');
-  await expect(page.locator('.mobile-bottom a[href="#conta"]')).toHaveText('Anunciar');
+  await expect(page.locator('header a.seller-cta')).toHaveAttribute('href','#anunciar');
+  await expect(page.locator('main').getByRole('link',{name:'Publicar meu anúncio'})).toHaveAttribute('href','#anunciar');
+  await expect(page.locator('.mobile-bottom a[href="#anunciar"]')).toHaveText('Anunciar');
   if(page.viewportSize()?.width>=761){
     await expect(page.locator('header a.seller-cta')).toBeVisible();
   }else{
@@ -178,7 +178,7 @@ test('conta publica anúncio e encerra sessão',async({page})=>{
  await page.route('**/api/account/profile',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({profile:{name:account.name,bio:''}})}));
  await page.route('**/api/account/logout',route=>route.fulfill({contentType:'application/json',body:'{"ok":true}'}));
  await page.goto('/#anunciar');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Meus anúncios.'})).toBeVisible();
- await page.getByLabel('O que você está vendendo?',{exact:true}).fill('Item de teste automatizado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Conte sobre o produto',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Como será a entrega?').fill('Retirada a combinar');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();await expect(page.locator('.account-offer')).toContainText('Publicado');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
+ await page.getByLabel('O que você está vendendo?',{exact:true}).fill('Item de teste automatizado');await page.getByLabel('Condição',{exact:true}).selectOption('Usado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Conte sobre o produto',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Como será a entrega?').fill('Retirada a combinar');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();await expect(page.locator('.account-offer')).toContainText('Publicado');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
  await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
 });
 
@@ -228,11 +228,32 @@ test('perfil só fica editável após carregar e não perde texto ao publicar an
  release();
  await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome carregado');
  await page.getByRole('textbox',{name:'Nome comercial',exact:true}).fill('Nome novo ainda não salvo');
- await page.getByRole('textbox',{name:'O que você está vendendo?',exact:true}).fill('Mesa para testar carregamento');
+ await page.getByRole('textbox',{name:'O que você está vendendo?',exact:true}).fill('Mesa para testar carregamento');await page.getByLabel('Condição',{exact:true}).selectOption('Usado');
  await page.getByRole('textbox',{name:'Preço em reais'}).fill('50,00');
  await page.getByRole('textbox',{name:'Conte sobre o produto',exact:true}).fill('Mesa usada com quatro lugares.');
  await page.getByRole('textbox',{name:'Como será a entrega?'}).fill('Retirada no bairro');
  await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
  await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
  await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome novo ainda não salvo');
+});
+
+
+test('caminho Anunciar abre diretamente a jornada do vendedor',async({page},info)=>{
+  await catalog(page);await page.goto('/');
+  if(info.project.name.startsWith('mobile')){
+    await page.getByRole('navigation',{name:'Atalhos para celular'}).getByRole('link',{name:'Anunciar'}).click();
+  }else{
+    await page.locator('header a.seller-cta').click();
+  }
+  await expect(page).toHaveURL(/#anunciar$/);
+  await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
+  await expect(page.getByText('Entre ou crie sua conta')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Criar conta'})).toBeVisible();
+});
+
+test('pesquisa rápida de eletrônicos abre catálogo filtrado',async({page})=>{
+  await catalog(page,items);await page.goto('/');
+  await page.getByRole('button',{name:'📱 Eletrônicos'}).click();
+  await expect(page).toHaveURL(/#catalogo$/);
+  await expect(page.locator('.filter-feedback')).toContainText('Eletrônicos');
 });

@@ -64,3 +64,105 @@
 .mobile-bottom a[href="#conta"]{color:var(--green);font-weight:800}
 @media(max-width:760px){.buyer-header .seller-cta{display:none}}
 @media(max-width:640px){.buyer-seller-invite{align-items:stretch;flex-direction:column}.buyer-seller-invite .button{width:100%}}
+
+
+/* VENDE+ — fluxo de compra e venda com uma linguagem visual única. */
+.app:not(.dark){--bg:#f5f7f4;--surface:#ffffff;--fg:#183c34;--muted:#63756d;--border:#dce7dd;--soft:#eef5ed;--green:#167a54;--green-deep:#0e5b3d}
+.app.dark{--bg:#101a16;--surface:#192923;--fg:#eaf6ee;--muted:#b3c7ba;--border:#334c3f;--soft:#233b30;--green:#a8e8b8}
+.app .main{padding-top:24px}
+.app .buyer-header{box-shadow:0 8px 26px #193b2910}
+.app .buyer-header .header-row{min-height:72px}
+.app .header-row nav{gap:20px}
+.app .header-row nav a{font-size:.85rem;text-decoration:none;transition:color .15s}
+.app .header-row nav a:hover,.app .header-row nav a[aria-current]{color:var(--green)}
+.app .brand{letter-spacing:-.07em}
+.app:not(.dark) .brand span{color:#167a54}
+.app .seller-cta{border-radius:999px;background:#167a54;color:#fff;box-shadow:none}
+.app .seller-cta:hover{background:#0d5b3d}
+.app .button:focus-visible,.app .icon-button:focus-visible,.app a:focus-visible,.app button:focus-visible,.app input:focus-visible,.app select:focus-visible,.app textarea:focus-visible{outline:3px solid #d49a34;outline-offset:3px}
+.app:not(.dark) .location-strip{background:#e8f2e9;color:#375e49;border-color:#d5e5d8}
+.app:not(.dark) .buyer-home .buyer-hero{background:linear-gradient(125deg,#ecf7ef 0%,#f6f7ed 60%,#fff7e6 100%);border-color:#deead9}
+.app.dark .buyer-home .buyer-hero{background:linear-gradient(120deg,#203a2d,#243c39 62%,#333924);border-color:#3d5b48}
+.app .buyer-home .buyer-hero{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.77fr);gap:30px;align-items:center;padding:40px 40px;min-height:390px;overflow:hidden;border-radius:26px}
+.app .buyer-hero .hero-copy{max-width:none;min-width:0;margin:0}
+.app .buyer-hero h1{font-size:clamp(2rem,3.7vw,3.25rem);line-height:1.15;letter-spacing:-.055em;margin-bottom:15px}
+.app:not(.dark) .buyer-hero h1{color:#153e30}
+.app.dark .buyer-hero h1{color:#effff2}
+.app .buyer-hero p{font-size:.95rem;line-height:1.7;margin:0 0 22px;max-width:570px}
+.app:not(.dark) .buyer-hero p{color:#567064}
+.app.dark .buyer-hero p{color:#d3e2d5}
+.app:not(.dark) .buyer-hero .eyebrow{color:#167a54}
+.app .buyer-hero .eyebrow{font-size:.72rem;letter-spacing:.07em;gap:8px}
+.app .buyer-hero .eyebrow .icon{width:15px;height:15px}
+.app .buyer-hero .search{max-width:670px;border-radius:16px;min-height:63px;padding:7px 7px 7px 18px;box-shadow:0 9px 24px #1b51310f}
+.app:not(.dark) .buyer-hero .search{border-color:#c9ddc9}
+.app:not(.dark) .buyer-hero .search .button{background:#167a54;color:white}
+.app:not(.dark) .buyer-hero .search .button:hover{background:#105d40}
+.app .buyer-hero .search input{font-size:.94rem}
+.app .buyer-hero .search .button{min-height:47px;border-radius:11px}
+.app .hero-quick-search{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.app .hero-quick-search>span{font-size:.74rem;color:var(--muted);font-weight:700;margin-right:2px}
+.app .hero-quick-search button{background:var(--surface);border:1px solid var(--border);color:var(--fg);border-radius:999px;font-size:.72rem;font-weight:700;min-height:34px;padding:5px 12px;transition:transform .15s,background .15s}
+.app .hero-quick-search button:hover{background:var(--soft);transform:translateY(-1px)}
+.app .buyer-benefits{margin-top:20px;gap:8px 14px}
+.app:not(.dark) .buyer-benefits span{background:transparent;border:0;padding:0;color:#567064}
+.app.dark .buyer-benefits span{background:transparent;border:0;padding:0;color:#d2e4d3}
+.app .hero-neighborhood{min-width:0;border-radius:25px;padding:25px;background:#154a39;color:#ecfff1;box-shadow:0 22px 40px #19453224;position:relative;overflow:hidden}
+.app .hero-neighborhood:before{content:"";position:absolute;inset:-90px -70px auto auto;width:230px;height:230px;border-radius:50%;background:#ffffff0f;pointer-events:none}
+.app .hero-neighborhood-label{display:block;font-size:.61rem;letter-spacing:.16em;font-weight:800;color:#b7ecc3;position:relative}
+.app .hero-neighborhood-main{display:flex;gap:13px;align-items:center;margin:22px 0 21px;position:relative}
+.app .hero-neighborhood-main>span{display:grid;place-items:center;background:#ffffff1f;width:58px;height:58px;border-radius:16px;font-size:2rem;flex-shrink:0}
+.app .hero-neighborhood-main strong{font-size:1.1rem;line-height:1.3;display:block}
+.app .hero-neighborhood-main small{display:block;color:#c8e1d1;margin-top:4px;font-size:.72rem}
+.app .hero-neighborhood-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.app .hero-neighborhood-grid>span{min-width:0;background:#ffffff12;border:1px solid #ffffff22;border-radius:13px;display:flex;gap:7px;align-items:center;padding:11px;font-size:.75rem;font-weight:700}
+.app .hero-neighborhood-grid>span>span{font-size:1.25rem}
+.app .hero-neighborhood-foot{margin-top:20px;display:flex;align-items:center;gap:9px;padding-top:15px;border-top:1px solid #ffffff2a;color:#d9f4df;font-size:.77rem}
+.app .hero-neighborhood-foot .icon{width:17px;height:17px}
+.app .buyer-seller-invite{margin:16px 0 4px;padding:19px 22px;border:1px solid var(--border);border-radius:19px;background:var(--surface);box-shadow:0 8px 24px #244b2b08;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.app .seller-invite-copy{display:flex;align-items:center;gap:13px;min-width:0}
+.app .seller-invite-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;flex:none;background:var(--soft);color:var(--green)}
+.app .seller-invite-icon .icon{width:24px;height:24px}
+.app .seller-invite-copy strong{display:block;font-size:.93rem}
+.app .seller-invite-copy p{margin:3px 0 0;font-size:.8rem;color:var(--muted);line-height:1.5;font-weight:400}
+.app .buyer-seller-invite .button{min-height:46px;white-space:nowrap}
+.app:not(.dark) .buyer-seller-invite .button.primary{background:#167a54;color:#fff}
+.app .buyer-home .section-heading{margin:28px 0 14px}
+.app:not(.dark) .buyer-home .category-section h2,.app:not(.dark) .buyer-home .buyer-offers>.section-heading h2{border-left:0;padding-left:0;color:var(--fg)}
+.app .buyer-home .category{border-radius:16px;min-height:85px;padding:15px 9px;transition:transform .15s,box-shadow .15s}
+.app .buyer-home .category:hover{transform:translateY(-2px);box-shadow:0 7px 20px #183b2215}
+.app .buyer-home .category>span{font-size:1.65rem}
+.app .buyer-home .category strong{font-size:.8rem}
+.app .listing-card{border-radius:18px;box-shadow:0 5px 18px #1c473011;transition:transform .18s,box-shadow .18s,border-color .18s}
+.app .listing-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px #1c473022;border-color:#a5cbbb}
+.app .listing-image{aspect-ratio:1.25}
+.app .listing-body{padding:17px}
+.app .listing-body h3{font-size:.95rem;line-height:1.45}
+.app .listing-body .price{font-size:1.25rem}
+.app:not(.dark) .listing-category{background:#e6f4e8;color:#176145}
+.app:not(.dark) .listing-action{color:#176145}
+.app .mobile-bottom{box-shadow:0 -7px 22px #0c231522;grid-template-columns:repeat(4,minmax(0,1fr))}
+.app .mobile-bottom a{border-radius:8px;min-width:0}
+.app .mobile-bottom a[href="#anunciar"]{color:var(--green);font-weight:800}
+.app .seller-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 20px}
+.app .seller-steps span{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:13px;min-width:0;padding:12px;font-size:.75rem;font-weight:700;line-height:1.4}
+.app .seller-steps b{display:grid;place-items:center;width:27px;height:27px;flex:none;background:var(--soft);color:var(--green);border-radius:50%;font-size:.75rem}
+.app .account-form{margin:0 auto}
+.app .account-area>.page-heading{text-align:center}
+.app .account-area>.page-heading p{max-width:610px;margin:auto}
+.app .seller-listing-form{gap:17px}
+.app .seller-listing-form>h2{margin-bottom:0}
+.app .seller-form-intro{font-size:.83rem;color:var(--muted);margin:0}
+.app .form-step-title{display:flex;gap:11px;align-items:center;border-top:1px solid var(--border);padding-top:19px}
+.app .form-step-title>span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--soft);color:var(--green);font-weight:800;flex:none}
+.app .form-step-title strong{display:block;font-size:.94rem}
+.app .form-step-title small{display:block;font-size:.73rem;color:var(--muted);margin-top:3px}
+.app .seller-form-disclaimer{background:var(--soft);border-radius:12px;padding:13px 15px;color:var(--muted);font-size:.78rem;margin:0}
+.app .seller-listing-form>.button[type="submit"]{min-height:54px;font-size:.94rem;border-radius:13px}
+.app .account-form>.button[type="submit"]{min-height:52px}
+@media(max-width:1080px){.app .buyer-home .buyer-hero{grid-template-columns:minmax(0,1.25fr) minmax(225px,.75fr);gap:22px;padding:30px}.app .hero-neighborhood{padding:18px}.app .header-row nav{gap:14px}.app .header-row{gap:13px}}
+@media(max-width:900px){.app .buyer-home .buyer-hero{grid-template-columns:1fr;padding:31px}.app .hero-neighborhood{display:none}.app .buyer-hero .hero-copy{max-width:690px}}
+@media(max-width:760px){.app .buyer-header .header-row{min-height:64px}.app .header-row nav{display:none}.app .buyer-home .buyer-hero{padding:25px 21px;border-radius:19px}.app .buyer-home .section-heading{margin-top:22px}.app .seller-steps{grid-template-columns:1fr;gap:7px}.app .seller-steps span{padding:9px 11px}.app .buyer-seller-invite{padding:17px}}
+@media(max-width:640px){.app .buyer-hero h1{font-size:clamp(1.85rem,7.3vw,2.35rem)}.app .buyer-hero p{font-size:.87rem;margin-bottom:17px}.app .buyer-hero .search{min-height:55px;padding:5px 5px 5px 12px}.app .buyer-hero .search .button{min-height:43px;padding:9px 11px;font-size:.79rem}.app .hero-quick-search{gap:6px}.app .hero-quick-search button{padding:5px 9px}.app .buyer-benefits{margin-top:16px}.app .buyer-seller-invite{align-items:stretch;flex-direction:column}.app .buyer-seller-invite .button{width:100%}.app .buyer-home .category{min-height:76px;padding:12px 6px}.app .mobile-bottom a{font-size:.59rem}.app .mobile-bottom a>.icon{width:20px;height:20px}.app .seller-listing-form{padding:20px 17px}}
+@media(max-width:360px){.app .buyer-home .buyer-hero{padding:20px 15px}.app .buyer-hero .search input{font-size:.8rem}.app .buyer-hero .search .button .icon{display:none}.app .buyer-hero .search .button{padding:8px 10px}.app .buyer-seller-invite{padding:14px}.app .hero-quick-search button{font-size:.67rem}.app .mobile-bottom a{font-size:.56rem}}
+@media(prefers-reduced-motion:reduce){.app .hero-quick-search button,.app .listing-card,.app .buyer-home .category{transition:none}.app .hero-quick-search button:hover,.app .listing-card:hover,.app .buyer-home .category:hover{transform:none}}

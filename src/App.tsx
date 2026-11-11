@@ -145,11 +145,44 @@ export function App(){
   return <div className={dark?'app dark':'app'}>
     <a href="#conteudo" className="skip-link" onClick={e=>{e.preventDefault();mainRef.current?.focus()}}>Pular para o conteúdo</a>
     <div className="location-strip"><div className="container"><span><Icon name="pin"/>Feito para Poranga e Jacarezinho, Itacoatiara</span><a href="#como-funciona">Como funciona<Icon name="arrow"/></a></div></div>
-    <header className="topbar buyer-header"><div className="container header-row"><a className="brand" href="#inicio" aria-label="VENDE+ início">VENDE<span>+</span></a><nav aria-label="Menu principal"><a href="#catalogo" aria-current={route.name==='catalogo'?'page':undefined}>Ver anúncios</a><a href="#como-funciona" aria-current={route.name==='como-funciona'?'page':undefined}>Como comprar</a></nav><a href="#conta" className="button primary seller-cta"><Icon name="plus"/>Anunciar</a><button className="icon-button theme" onClick={changeTheme} aria-label="Alternar tema" aria-pressed={dark}><Icon name="sun"/></button></div></header>
+    <header className="topbar buyer-header"><div className="container header-row"><a className="brand" href="#inicio" aria-label="VENDE+ início">VENDE<span>+</span></a><nav aria-label="Menu principal"><a href="#catalogo" aria-current={route.name==='catalogo'?'page':undefined}>Ver anúncios</a><a href="#como-funciona" aria-current={route.name==='como-funciona'?'page':undefined}>Como comprar</a><a href="#conta" aria-current={route.name==='conta'?'page':undefined}>Minha área</a></nav><a href="#anunciar" className="button primary seller-cta"><Icon name="plus"/>Anunciar</a><button className="icon-button theme" onClick={changeTheme} aria-label="Alternar tema" aria-pressed={dark}><Icon name="sun"/></button></div></header>
     <main ref={mainRef} id="conteudo" tabIndex={-1} className="container main">
       {notice&&<div className="notice" role="status">{notice}<button className="icon-button" onClick={()=>setNotice('')} aria-label="Fechar aviso"><Icon name="close"/></button></div>}
       {route.name==='inicio'&&<div className="buyer-home">
-        <section className="hero buyer-hero"><div className="hero-copy"><span className="eyebrow">Compre perto de você</span><h1>Encontre o que você precisa<br/>no seu bairro.</h1><p>Produtos e serviços de Poranga e Jacarezinho. Escolha um anúncio e converse pelo WhatsApp.</p><form className="search" onSubmit={e=>{e.preventDefault();const value=String(new FormData(e.currentTarget).get('q')||'');reset();setQuery(value);location.hash='catalogo'}}><Icon name="search"/><input name="q" aria-label="Pesquisar no bairro" placeholder="Ex.: celular, almoço, roupa…"/><button className="button primary">Buscar<Icon name="arrow"/></button></form><div className="buyer-seller-invite"><span>Tem algo para vender no bairro?</span><a href="#conta" className="button outline"><Icon name="plus"/>Publicar meu anúncio</a></div><div className="buyer-benefits"><span><Icon name="check"/>Sem cadastro para comprar</span><span><Icon name="arrow"/>Contato direto com quem vende</span></div></div></section>
+        <section className="hero buyer-hero">
+          <div className="hero-copy">
+            <span className="eyebrow"><Icon name="pin"/> O comércio pertinho de você</span>
+            <h1>Encontre o que você precisa<br/>sem sair do seu bairro.</h1>
+            <p>Descubra ofertas em Poranga e Jacarezinho. Gostou? Fale diretamente com quem vende pelo WhatsApp.</p>
+            <form className="search" onSubmit={e=>{e.preventDefault();const value=String(new FormData(e.currentTarget).get('q')||'');reset();setQuery(value);location.hash='catalogo'}}>
+              <Icon name="search"/>
+              <input name="q" aria-label="Pesquisar no bairro" placeholder="O que você procura?" autoComplete="off"/>
+              <button className="button primary">Buscar<Icon name="arrow"/></button>
+            </form>
+            <div className="hero-quick-search" aria-label="Buscas rápidas">
+              <span>Explore:</span>
+              <button type="button" onClick={()=>browse('Eletrônicos')}>📱 Eletrônicos</button>
+              <button type="button" onClick={()=>browse('Alimentação')}>🍱 Alimentação</button>
+              <button type="button" onClick={()=>browse('Moda')}>👕 Moda</button>
+            </div>
+            <div className="buyer-benefits"><span><Icon name="check"/> Comprar sem cadastro</span><span><Icon name="message-circle"/> Contato direto no WhatsApp</span></div>
+          </div>
+          <aside className="hero-neighborhood" aria-label="Categorias do seu bairro">
+            <span className="hero-neighborhood-label">VENDE+ NO SEU BAIRRO</span>
+            <div className="hero-neighborhood-main"><span aria-hidden="true">🛍️</span><div><strong>Poranga & Jacarezinho</strong><small>Produtos e serviços de perto</small></div></div>
+            <div className="hero-neighborhood-grid">
+              <span><span aria-hidden="true">📱</span> Eletrônicos</span>
+              <span><span aria-hidden="true">🍱</span> Comida</span>
+              <span><span aria-hidden="true">🛋️</span> Casa</span>
+              <span><span aria-hidden="true">🛠️</span> Serviços</span>
+            </div>
+            <div className="hero-neighborhood-foot"><Icon name="message-circle"/> Encontrou? Chame quem anuncia.</div>
+          </aside>
+        </section>
+        <section className="buyer-seller-invite" aria-label="Comece a vender">
+          <div className="seller-invite-copy"><span className="seller-invite-icon"><Icon name="plus"/></span><div><strong>Tem algo para vender?</strong><p>Publique seu anúncio e seja encontrado por pessoas do bairro.</p></div></div>
+          <a href="#anunciar" className="button primary"><Icon name="plus"/>Publicar meu anúncio</a>
+        </section>
         <section className="category-section" aria-label="Categorias de produtos e serviços"><div className="section-heading"><h2>Escolha uma categoria</h2></div><div className="category-grid">{categories.map(item=><button className="category" key={item.name} onClick={()=>browse(item.name)}><span aria-hidden="true">{item.emoji}</span><strong>{item.name}</strong></button>)}</div></section>
         <section className="buyer-offers"><div className="section-heading"><h2>Anúncios do bairro</h2><a href="#catalogo" className="text-link" onClick={reset}>Ver todos<Icon name="arrow"/></a></div>{catalog.kind==='ready'&&catalog.listings.length?<div className="product-grid">{filterListings(catalog.listings).slice(0,8).map(item=><ListingCard key={item.id} listing={item}/>)}</div>:catalogContent()}</section>
         <p className="buyer-safety"><Icon name="shield"/>Confira o produto e combine a entrega antes de pagar. A negociação é feita diretamente com quem anuncia.</p>
@@ -166,7 +199,7 @@ export function App(){
       {route.name==='indisponivel'&&<Empty title="Página não encontrada" icon="search"><p>Continue explorando as oportunidades do bairro.</p><a href="#inicio" className="button primary">Voltar ao início</a></Empty>}
     </main>
     <footer className="footer"><div className="container footer-grid"><div><a className="brand" href="#inicio">VENDE<span>+</span></a><p>O comércio do seu bairro,<br/>com novas possibilidades.</p><span className="footer-location"><Icon name="pin"/>Poranga e Jacarezinho · Itacoatiara, AM</span></div><div><h2>Para comprar</h2><a href="#catalogo">Ver anúncios</a><a href="#como-funciona">Como comprar</a></div><div><h2>VENDE+</h2><a href="#como-funciona">Como funciona</a><p>Um produto APOCALYPTIC.<br/>Feito para aproximar o bairro.</p><a href="#conta" className="seller-entry">Área de quem anuncia</a></div></div><div className="container footer-bottom"><span>© {new Date().getFullYear()} VENDE+ · APOCALYPTIC</span><span>Negocie com atenção. Valorize o comércio local.</span></div></footer>
-    <nav className="mobile-bottom" aria-label="Atalhos para celular">{[['inicio','Início','home'],['catalogo','Buscar','search'],['como-funciona','Como comprar','bag'],['conta','Anunciar','plus']].map(([name,label,icon])=><a key={name} href={`#${name}`} aria-current={route.name===name?'page':undefined}><Icon name={icon}/>{label}</a>)}</nav>
+    <nav className="mobile-bottom" aria-label="Atalhos para celular">{[['inicio','Início','home'],['catalogo','Buscar','search'],['anunciar','Anunciar','plus'],['conta','Minha área','user']].map(([name,label,icon])=><a key={name} href={`#${name}`} aria-current={route.name===name?'page':undefined}><Icon name={icon}/>{label}</a>)}</nav>
     {dialog&&<Modal title={dialog.title} onClose={()=>setDialog(null)}>{dialog.content}</Modal>}
   </div>;
 }
