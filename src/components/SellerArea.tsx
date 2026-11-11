@@ -89,7 +89,7 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
   });
  };
  const edit=(offer:Offer)=>{setEditing(offer);setSelectedPhoto(null);setCategory(offer.category);setShowForm(true);window.scrollTo({top:0,behavior:'smooth'})};
- const update=(offer:Offer,status:string)=>void execute(async()=>{await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice('Anúncio atualizado.')});
+ const update=(offer:Offer,status:string)=>void execute(async()=>{const result=await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice(result.warning||(status==='removed'?'Anúncio removido.':'Anúncio atualizado.'))});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
  const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh(true);setNotice('Perfil atualizado.')})};

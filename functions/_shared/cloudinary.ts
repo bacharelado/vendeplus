@@ -12,6 +12,19 @@ const cloudPattern=/^[a-z0-9_-]{1,100}$/i;
 const idFromKey=(key:string)=>'vendeplus/'+key.slice(2,-4);
 const signature=(params:Record<string,string>,secret:string)=>createHash('sha1').update(Object.entries(params).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('&')+secret).digest('hex');
 
+// Keep provider details in fixed categories: Cloudinary errors can contain
+// signatures or request parameters and must never be reflected to visitors.
+export class CloudinaryUploadError extends Error {
+ readonly httpStatus:number;
+ readonly category:string;
+ constructor(httpStatus:number,category:string){
+  super('Cloudinary recusou a fotografia.');
+  this.name='CloudinaryUploadError';
+  this.httpStatus=httpStatus;
+  this.category=category;
+ }
+}
+
 export function cloudinaryReady(env:CloudinaryEnv){
  return cloudPattern.test(env.CLOUDINARY_CLOUD_NAME?.trim()||'')&&/^[0-9]+$/.test(env.CLOUDINARY_API_KEY?.trim()||'')&&!!env.CLOUDINARY_API_SECRET?.trim();
 }
@@ -44,7 +57,8 @@ export async function uploadCloudinary(env:CloudinaryEnv,key:string,bytes:Uint8A
  const params={
   overwrite:'false',
   public_id:idFromKey(key),
-  timestamp:String(Math.floor(Date.now()/1000))
+  timestamp:String(Math.floor(Date.now()/1000)),
+  type:'authenticated'
  };
 
  const form=signedForm(params,apiKey,secret);
@@ -53,15 +67,17 @@ export async function uploadCloudinary(env:CloudinaryEnv,key:string,bytes:Uint8A
 
  form.set('file',new Blob([copy.buffer],{type:'image/png'}),'photo.png');
 
- const response=await fetch('https://api.cloudinary.com/v1_1/'+name+'/image/authenticated',{
+ const response=await fetch('https://api.cloudinary.com/v1_1/'+name+'/image/upload',{
   method:'POST',
   body:form,
   signal:AbortSignal.timeout(20000)
  });
 
  if(!response.ok){
-  console.error('CLOUDINARY_UPLOAD_HTTP_STATUS',response.status);
-  throw new Error('Cloudinary recusou a fotografia.');
+  let message='';
+  try{message=String((await response.json() as {error?:{message?:unknown}}).error?.message||'')}catch{/* Non-JSON provider failure. */}
+  const category=/invalid signature/i.test(message)?'invalid_signature':/api.?key/i.test(message)?'api_key_rejected':/cloud.?name/i.test(message)?'cloud_name_rejected':response.status===429?'rate_limited':response.status>=500?'provider_unavailable':'provider_rejected';
+  throw new CloudinaryUploadError(response.status,category);
  }
 
  const result=await response.json() as Record<string,unknown>;

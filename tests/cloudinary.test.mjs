@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {cloudinaryKey,cloudinaryReady,deleteCloudinary,readCloudinary,uploadCloudinary} from '../functions/_shared/cloudinary.ts';
+import {CloudinaryUploadError,cloudinaryKey,cloudinaryReady,deleteCloudinary,readCloudinary,uploadCloudinary} from '../functions/_shared/cloudinary.ts';
 
 const env={CLOUDINARY_CLOUD_NAME:'vendeplus-test',CLOUDINARY_API_KEY:'123456',CLOUDINARY_API_SECRET:'secret-test-only'};
 const key='c-123e4567-e89b-12d3-a456-426614174000.png';
@@ -22,18 +22,46 @@ test('upload autenticado usa assinatura e nunca inclui segredo no formulário',a
  const original=globalThis.fetch;
  try{
   globalThis.fetch=async(url,options)=>{
-   assert.equal(url,'https://api.cloudinary.com/v1_1/vendeplus-test/image/authenticated');
+   assert.equal(url,'https://api.cloudinary.com/v1_1/vendeplus-test/image/upload');
    assert.equal(options.method,'POST');
    const form=options.body;
    assert.equal(form.get('public_id'),publicId);
    assert.equal(form.get('overwrite'),'false');
+   assert.equal(form.get('type'),'authenticated');
    assert.equal(form.get('api_key'),env.CLOUDINARY_API_KEY);
-   assert.equal(form.get('signature'),sha({overwrite:'false',public_id:publicId,timestamp:form.get('timestamp')}));
+   assert.equal(form.get('signature'),sha({overwrite:'false',public_id:publicId,timestamp:form.get('timestamp'),type:'authenticated'}));
    assert.equal(form.has('api_secret'),false);
    assert.equal(form.get('file').type,'image/png');
    return Response.json({public_id:publicId,type:'authenticated',format:'png',resource_type:'image'});
   };
   await uploadCloudinary(env,key,new Uint8Array([137,80,78,71]));
+ }finally{globalThis.fetch=original}
+});
+
+test('erros do provedor preservam somente status e categoria sem expor a resposta',async()=>{
+ const original=globalThis.fetch;
+ try{
+  globalThis.fetch=async()=>Response.json({error:{message:'Invalid Signature: private-payload api_secret='+env.CLOUDINARY_API_SECRET}},{status:401});
+  await assert.rejects(()=>uploadCloudinary(env,key,new Uint8Array([137,80,78,71])),error=>{
+   assert.ok(error instanceof CloudinaryUploadError);
+   assert.equal(error.httpStatus,401);
+   assert.equal(error.category,'invalid_signature');
+   assert.ok(!JSON.stringify(error).includes(env.CLOUDINARY_API_SECRET));
+   assert.ok(!String(error).includes('private-payload'));
+   return true;
+  });
+  globalThis.fetch=async()=>new Response('<html>unavailable</html>',{status:502});
+  await assert.rejects(()=>uploadCloudinary(env,key,new Uint8Array([1])),error=>error.httpStatus===502&&error.category==='provider_unavailable');
+ }finally{globalThis.fetch=original}
+});
+
+test('upload não aceita armazenamento público nem identificador diferente na resposta',async()=>{
+ const original=globalThis.fetch;
+ try{
+  for(const invalid of [{type:'upload'},{public_id:'outro-id'},{format:'jpg'}]){
+   globalThis.fetch=async()=>Response.json({public_id:publicId,type:'authenticated',format:'png',resource_type:'image',...invalid});
+   await assert.rejects(()=>uploadCloudinary(env,key,new Uint8Array([1])),/Resposta inesperada/);
+  }
  }finally{globalThis.fetch=original}
 });
 

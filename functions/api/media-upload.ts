@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {session,type Database} from '../_shared/account.ts';
 import {cleanPhoto} from '../_shared/image.ts';
-import {cloudinaryKey,cloudinaryReady,deleteCloudinary,uploadCloudinary,type CloudinaryEnv} from '../_shared/cloudinary.ts';
+import {CloudinaryUploadError,cloudinaryKey,cloudinaryReady,deleteCloudinary,uploadCloudinary,type CloudinaryEnv} from '../_shared/cloudinary.ts';
 type Bucket={put:(key:string,body:Uint8Array,metadata:{httpMetadata:{contentType:string}})=>Promise<unknown>;delete:(key:string)=>Promise<unknown>};
 type Env=CloudinaryEnv&{MARKETPLACE_DB?:Database;LISTING_IMAGES?:Bucket};
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -33,6 +33,7 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
  if(!Number.isSafeInteger(id)||id<=0)return json({error:'Anúncio inválido.'},400);
  const db=env.MARKETPLACE_DB,bucket=env.LISTING_IMAGES,useCloudinary=cloudinaryReady(env);
  let phase='session';
+ const requestId=crypto.randomUUID();
  const remove=async(key:string)=>{if(cloudinaryKey(key))await deleteCloudinary(env,key);else if(bucket)await bucket.delete(key);else throw new Error('Armazenamento anterior indisponível.')};
  try{
   const user=await session(db,request);
@@ -84,7 +85,7 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
   return json({ok:true,image});
  }catch(error){
   const kind=error instanceof Error&&['TimeoutError','AbortError','TypeError'].includes(error.name)?error.name:'UnhandledError';
-  console.error('VENDEPLUS_PHOTO_UPLOAD_FAILURE',{phase,kind});
-  return json({error:'Não foi possível salvar a foto. Tente novamente.'},503);
+  console.error('VENDEPLUS_PHOTO_UPLOAD_FAILURE',{requestId,phase,kind,...(error instanceof CloudinaryUploadError?{providerStatus:error.httpStatus,providerCategory:error.category}:{})});
+  return json({error:'Não foi possível salvar a foto. Tente novamente.',code:'PHOTO_UPLOAD_FAILED',requestId},503);
  }
 }

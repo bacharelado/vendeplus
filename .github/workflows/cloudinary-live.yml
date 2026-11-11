@@ -1,0 +1,38 @@
+name: VENDE+ — Fotos reais na prévia
+on:
+  push:
+    branches: [feat/cloudinary-fotos-free]
+    paths:
+      - 'functions/**'
+      - scripts/audit-cloudinary-live.mjs
+      - .github/workflows/cloudinary-live.yml
+permissions:
+  contents: read
+concurrency:
+  group: vendeplus-cloudinary-live
+  cancel-in-progress: false
+jobs:
+  auditar:
+    if: github.ref == 'refs/heads/feat/cloudinary-fotos-free'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Testar contas e fotos no deploy deste commit e limpar somente dados QA
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/audit-cloudinary-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cloudinary-live-${{ github.sha }}
+          path: artifacts/cloudinary-live/
+          retention-days: 7
