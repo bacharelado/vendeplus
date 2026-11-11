@@ -291,3 +291,15 @@ test('denúncia revela formulário, limpa dados após sucesso e evita envio dupl
   await expect(page.getByLabel('Motivo')).toHaveValue('spam');
   await expect(page.getByLabel('Detalhes (opcional)')).toHaveValue('');
 });
+
+test('area de vendedor nao carrega catalogo publico desnecessariamente',async({page})=>{
+ let requests=0;
+ await page.route('**/api/account/session',route=>route.fulfill({contentType:'application/json',body:'{"account":null}'}));
+ await page.route('**/api/listings**',route=>{requests++;return route.fulfill({contentType:'application/json',body:'{"listings":[]}'})});
+ await page.goto('/#anunciar');
+ await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
+ expect(requests).toBe(0);
+ await page.goto('/#catalogo');
+ await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
+ expect(requests).toBeGreaterThan(0);
+});
