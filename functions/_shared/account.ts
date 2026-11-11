@@ -1,11 +1,12 @@
 import {normalizeWhatsapp} from '../../src/lib/phone.mjs';
 import {randomBytes,scrypt,timingSafeEqual,createHash} from 'node:crypto';
 import {moderateOffer} from './moderation.ts';
+import {removeListingPhoto,type PhotoEnv} from './photo-cleanup.ts';
 
 type Row=Record<string,unknown>;
 type Statement={bind:(...values:unknown[])=>Statement;first:()=>Promise<Row|null>;all:()=>Promise<{results:Row[]}>;run:()=>Promise<{meta:{changes:number}}>};
 export type Database={prepare:(query:string)=>Statement;batch:(statements:Statement[])=>Promise<unknown[]>};
-type Context={request:Request;env:{MARKETPLACE_DB?:Database}};
+type Context={request:Request;env:PhotoEnv&{MARKETPLACE_DB?:Database}};
 const neighborhoods=['Poranga I','Poranga II','Jacarezinho'];
 const categories=['Alimentação','Moda','Eletrônicos','Casa','Beleza','Serviços'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -101,7 +102,7 @@ export async function handleAccount({request,env}:Context){
   const own=/^\/listings\/(\d+)$/.exec(path);
   if(own&&request.method==='PATCH'){
    const id=Number(own[1]);
-   const current=await db.prepare("SELECT status FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
+   const current=await db.prepare("SELECT status,image_url AS image FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
    if(!current||['removed','rejected'].includes(String(current.status)))throw new Failure('Anúncio não encontrado.',404);
    if(data.action==='edit'){
     const values=listingData(data);
@@ -115,6 +116,10 @@ export async function handleAccount({request,env}:Context){
    if(data.status==='sold'&&!['published','paused'].includes(String(current.status)))throw new Failure('O anúncio não pode ser marcado como vendido.',409);
    const result=await db.prepare('UPDATE marketplace_listings SET status=? WHERE id=? AND seller_id=? AND status=?').bind(data.status,id,account.id,current.status).run();if(!result.meta.changes)throw new Failure('O anúncio mudou. Atualize.',409);
    await db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,String(data.status)).run();
+   if(data.status==='removed'){
+    try{await removeListingPhoto(db,env,current.image,new URL(request.url).origin,id)}
+    catch{console.error('VENDEPLUS_PHOTO_CLEANUP_PENDING',{listingId:id});return reply({ok:true,warning:'Anúncio removido. A limpeza da foto está pendente.'})}
+   }
    return reply({ok:true});
   }
   if(path==='/password'&&request.method==='POST'){
