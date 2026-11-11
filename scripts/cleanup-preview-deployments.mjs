@@ -20,14 +20,14 @@ async function main(){
  }
  const projectPath='/pages/projects/'+projectName,before=await api(projectPath);
  if(before.name!==projectName||before.production_branch!=='main'||!before.canonical_deployment?.id)throw Error('Produção não identificada.');
- const recovery=await api(projectPath+'/deployments?per_page=100');
+ const recovery=await api(projectPath+'/deployments?per_page=25');
  if(!recovery.some(d=>d.environment==='preview'&&d.deployment_trigger?.metadata?.commit_hash===validatedCommit&&d.latest_stage?.name==='deploy'&&d.latest_stage.status==='success'))throw Error('Deploy de recuperação validado ausente.');
  const databases=[...new Set(Object.values(before.deployment_configs).flatMap(c=>Object.values(c.d1_databases||{}).map(b=>b.id)))];
  if(databases.length<2)throw Error('Bancos isolados não confirmados.');
  const all=[];
  for(let page=1;page<=20;page++){
-  const rows=await api(projectPath+'/deployments?per_page=100&page='+page);all.push(...rows);
-  if(rows.length<100)break;
+  const rows=await api(projectPath+'/deployments?per_page=25&page='+page);all.push(...rows);
+  if(rows.length<25)break;
   if(page===20)throw Error('Lista de deploys incompleta.');
  }
  const report={validatedCommit,deleted:[],preserved:[],productionDeployment:before.canonical_deployment.id};

@@ -63,7 +63,7 @@ try{
  report.upload={http:uploaded.status,...(uploaded.status===200?{ok:uploaded.body.ok}:{error:uploaded.body.error,code:uploaded.body.code,requestId:uploaded.body.requestId})};
  console.log('UPLOAD_RESULT '+JSON.stringify(report.upload));
  assert.equal(uploaded.status,200,'Upload real de PNG precisa retornar HTTP 200');
- const image=uploaded.body.image;assert.equal(new URL(image).origin,origin);assert.match(new URL(image).pathname,/^\/api\/media\/c-/);
+ let image=uploaded.body.image;assert.equal(new URL(image).origin,origin);assert.match(new URL(image).pathname,/^\/api\/media\/c-/);
  stamp('Upload de PNG no Cloudinary autenticado HTTP 200');
  const photo=await fetch(image,{redirect:'error'});assert.equal(photo.status,200);assert.match(photo.headers.get('Content-Type'),/^image\/png/);
  const decoded=PNG.sync.read(Buffer.from(await photo.arrayBuffer()));assert.equal(decoded.width,320);assert.equal(decoded.height,240);assert.deepEqual(decoded.data,pixels);
@@ -88,6 +88,30 @@ try{
   await context.close();
  }
  stamp('Fotografia visível no navegador desktop e mobile');
+ const sellerContext=await browser.newContext({viewport:{width:390,height:844}});
+ const separator=sessions[0].indexOf('=');
+ await sellerContext.addCookies([{name:sessions[0].slice(0,separator),value:sessions[0].slice(separator+1),url:origin,httpOnly:true,secure:true,sameSite:'Lax'}]);
+ const sellerPage=await sellerContext.newPage();
+ await sellerPage.goto(origin+'/#conta');
+ const owned=sellerPage.locator('.account-offer').filter({hasText:title+' EDITADO'});
+ await expect(owned).toBeVisible();
+ await owned.getByRole('button',{name:'Editar',exact:true}).click();
+ await sellerPage.getByLabel('Foto do produto (opcional)',{exact:true}).setInputFiles('tests/fixtures/product-upload.jpg');
+ const photoResponse=sellerPage.waitForResponse(r=>r.url().startsWith(origin+'/api/media-upload?listingId=')&&r.request().method()==='POST');
+ await sellerPage.getByRole('button',{name:'Salvar alterações',exact:true}).click();
+ const realPhotoResponse=await photoResponse;
+ const realPhotoResult=await realPhotoResponse.json();
+ report.productPhoto={http:realPhotoResponse.status(),...(realPhotoResponse.status()===200?{ok:realPhotoResult.ok}:{error:realPhotoResult.error,code:realPhotoResult.code,requestId:realPhotoResult.requestId})};
+ console.log('PRODUCT_PHOTO_RESULT '+JSON.stringify(report.productPhoto));
+ assert.equal(realPhotoResponse.status(),200,'Upload pelo formulário real precisa funcionar com foto de produto');
+ image=realPhotoResult.image;
+ await sellerPage.goto(origin+'/#anuncio-'+id);
+ const actualPhoto=sellerPage.locator('img[src="'+image+'"]');
+ await expect(actualPhoto).toBeVisible();
+ await expect.poll(()=>actualPhoto.evaluate(im=>im.complete&&im.naturalWidth===1280&&im.naturalHeight===853),{timeout:15000}).toBe(true);
+ await sellerPage.screenshot({path:folder+'/product-mobile.png',fullPage:true});
+ await sellerContext.close();
+ stamp('Foto de produto enviada pelo formulário e visível no celular em 1280 × 853');
  for(const status of ['paused','published']){
   assert.equal((await request('/api/account/listings/'+id,{method:'PATCH',body:{status},cookie:sessions[0]})).status,200);
   const visible=await fetch(image,{redirect:'error'});assert.equal(visible.status,status==='paused'?404:200);await visible.body?.cancel();
