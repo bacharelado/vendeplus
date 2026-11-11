@@ -15,6 +15,7 @@ async function api(path,body){
 const project=await api('/pages/projects/'+projectName);
 if(!project||project.name!==projectName)throw Error('Projeto não confirmado.');
 const summaries={};
+console.log(JSON.stringify({repositoryCloudinarySecrets:{apiKey:!!process.env.GH_CLOUDINARY_API_KEY,apiSecret:!!process.env.GH_CLOUDINARY_API_SECRET}}));
 for(const environment of ['preview','production']){
  const config=project.deployment_configs?.[environment]||{};
  const binding=config.d1_databases?.MARKETPLACE_DB?.id;
@@ -27,7 +28,7 @@ for(const environment of ['preview','production']){
   const schema=await api('/d1/database/'+binding+'/query',{sql:"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"});
   summaries[environment].tables=schema?.[0]?.results?.map(r=>r.name);
   const integrity=await api('/d1/database/'+binding+'/query',{sql:'PRAGMA quick_check; PRAGMA foreign_key_check;'});
-  summaries[environment].integrity=integrity?.map(r=>({success:r.success,rows:r.results?.length,ok:r.results?.length===1&&Object.values(r.results[0]).includes('ok')}));
+  summaries[environment].integrity=integrity?.map((r,i)=>({check:i===0?'quick_check':'foreign_key_check',success:r.success,rows:r.results?.length,ok:i===0?r.results?.length===1&&Object.values(r.results[0]).includes('ok'):r.results?.length===0}));
  }
 }
 console.log(JSON.stringify({project:project.name,productionBranch:project.production_branch,isolatedDatabases:!!project.deployment_configs.preview.d1_databases?.MARKETPLACE_DB?.id&&project.deployment_configs.preview.d1_databases.MARKETPLACE_DB.id!==project.deployment_configs.production.d1_databases?.MARKETPLACE_DB?.id,environments:summaries}));
@@ -41,4 +42,11 @@ if(logs){
  const text=JSON.stringify(logs);
  const known=['Missing entry-point','Missing entry point','assets directory','wrangler deploy','wrangler pages deploy','Authentication error','Unauthorized','Could not resolve','Build failed','Deploy failed','No such file','not found','Missing script','build: not found','npm: not found','wrangler: not found','vite: not found','yarn: not found','npm run build','npx wrangler deploy','Command failed','exit code 127','build: command not found','npm: command not found','wrangler: command not found','tsc: not found','tsc: command not found','ENOENT','Could not read package.json','Cannot find module','npm error','Failed:'];
  console.log(JSON.stringify({workerBuildEvidence:known.filter(s=>text.toLowerCase().includes(s.toLowerCase())),lines:logs.lines?.length,truncated:logs.truncated}));
+ const secrets=[token,process.env.GH_CLOUDINARY_API_KEY,process.env.GH_CLOUDINARY_API_SECRET,...Object.values(project.deployment_configs).flatMap(c=>Object.values(c.env_vars||{}).map(v=>v?.value))].filter(v=>typeof v==='string'&&v.length>3);
+ const redact=value=>{
+  let safe=value;
+  for(const secret of secrets)safe=safe.replaceAll(secret,'[REDACTED]');
+  return safe.replace(/https?:\/\/[^\s"\\]+/g,'[URL]').replace(/[A-Za-z0-9_-]{24,}/g,'[REDACTED]').replace(/\b\d{12,}\b/g,'[REDACTED]').replace(/(Bearer|Basic)\s+\S+/gi,'$1 [REDACTED]');
+ };
+ console.log(JSON.stringify({workerFailureLines:(logs.lines||[]).map(l=>typeof l==='string'?l:JSON.stringify(l)).filter(l=>/not found|Failed:|ERROR/i.test(l)).slice(0,10).map(redact)}));
 }
