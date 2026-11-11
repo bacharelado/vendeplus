@@ -97,6 +97,7 @@ export function App(){
     window.addEventListener('hashchange',onHash);return ()=>window.removeEventListener('hashchange',onHash);
   },[]);
   useEffect(()=>{
+    if(!['inicio','catalogo'].includes(route.name))return;
     const controller=new AbortController();
     const timer=window.setTimeout(()=>controller.abort(),8000);
     catalogVersion.current++;setNextCursor(undefined);
@@ -104,7 +105,7 @@ export function App(){
     let disposed=false;
     fetchCatalogPage(controller.signal).then(page=>{if(!disposed){setCatalog({kind:'ready',listings:page.listings});setNextCursor(page.nextCursor)}}).catch(()=>{if(!disposed)setCatalog({kind:'unavailable',listings:[]})}).finally(()=>clearTimeout(timer));
     return ()=>{disposed=true;controller.abort();clearTimeout(timer)};
-  },[refresh]);
+  },[refresh,route.name]);
   useEffect(()=>{const update=(event:StorageEvent)=>{if(event.key==='vendeplus:drafts:v1'||event.key===null){try{setDrafts(readDrafts(localStorage))}catch{}}};window.addEventListener('storage',update);return ()=>window.removeEventListener('storage',update)},[]);
   useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda em Poranga e Jacarezinho',catalogo:'Encontre no bairro',anunciar:'Publicar anúncio',publicar:'Prepare seu anúncio',painel:'Meus rascunhos',conta:'Minha conta',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor','como-funciona':'Como funciona'};document.title=`${titles[route.name]||'VENDE+'} | VENDE+`},[route.name]);
   useEffect(()=>{if(route.name==='anuncio'&&detail.kind==='ready'&&detail.id===route.id&&detail.listing){document.title=`${detail.listing.title} | VENDE+`}},[route.name,route.id,detail]);
@@ -115,10 +116,10 @@ export function App(){
   const active=detail.id===route.id&&detail.kind==='ready'?detail.listing:undefined;
   useEffect(()=>{
     if(route.name!=='anuncio'||!route.id)return;
-    const id=route.id,controller=new AbortController();let disposed=false;
+    const id=route.id,controller=new AbortController(),timer=window.setTimeout(()=>controller.abort(),8000);let disposed=false;
     setDetail({id,kind:'loading'});
-    fetchListing(id,controller.signal).then(listing=>{if(!disposed)setDetail({id,kind:'ready',listing})}).catch(()=>{if(!disposed)setDetail({id,kind:'unavailable'})});
-    return ()=>{disposed=true;controller.abort()};
+    fetchListing(id,controller.signal).then(listing=>{if(!disposed)setDetail({id,kind:'ready',listing})}).catch(()=>{if(!disposed)setDetail({id,kind:'unavailable'})}).finally(()=>clearTimeout(timer));
+    return ()=>{disposed=true;controller.abort();clearTimeout(timer)};
   },[route.name,route.id,refresh]);
   const more=async()=>{
     if(!nextCursor||loadingMore)return;
@@ -140,8 +141,7 @@ export function App(){
     let copied=false;try{await navigator.clipboard.writeText(link);copied=true}catch{}
     setDialog({title:copied?'Link copiado':'Compartilhar anúncio',content:<><p>{copied?'Envie o endereço para quem pode se interessar.':'Selecione o endereço abaixo para copiar e enviar.'}</p><label className="share-label">Link do anúncio<input readOnly value={link} onFocus={e=>e.currentTarget.select()}/></label></>});
   };
-  useEffect(()=>{if(['inicio','catalogo','anuncio'].includes(route.name))setRefresh(value=>value+1)},[route.name,route.id]);
-  useEffect(()=>{const reload=()=>{if(document.visibilityState==='visible')setRefresh(value=>value+1)};document.addEventListener('visibilitychange',reload);return ()=>document.removeEventListener('visibilitychange',reload)},[]);
+  useEffect(()=>{const reload=()=>{if(document.visibilityState==='visible'&&['inicio','catalogo','anuncio'].includes(route.name))setRefresh(value=>value+1)};document.addEventListener('visibilitychange',reload);return ()=>document.removeEventListener('visibilitychange',reload)},[route.name]);
   const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando anúncios…</div>:catalog.kind==='unavailable'?<Empty title="Não foi possível carregar os anúncios"><p>Tente novamente em alguns instantes.</p><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:<Empty title={catalog.listings.length?'Nenhum anúncio encontrado':'Ainda não há anúncios no bairro'} icon="search"><p>{catalog.listings.length?'Tente outra palavra ou escolha outra categoria.':'Assim que forem publicados, os anúncios aparecerão aqui.'}</p>{catalog.listings.length?<button className="button outline" onClick={reset}>Limpar filtros</button>:<button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Atualizar anúncios</button>}</Empty>;
   return <div className={dark?'app dark':'app'}>
     <a href="#conteudo" className="skip-link" onClick={e=>{e.preventDefault();mainRef.current?.focus()}}>Pular para o conteúdo</a>
