@@ -20,8 +20,14 @@ test('vitrine pública não contém avisos de demonstração nem anúncios inven
   await expect(page.locator('body')).not.toContainText(/demonstração|simulação|fictício|Vendedor de demonstração/i);
   await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
   await expect(page.locator('.demo-banner')).toHaveCount(0);
-  await expect(page.locator('header').getByRole('link',{name:/Anunciar|Minha conta|Meus rascunhos/})).toHaveCount(0);
-  await expect(page.locator('main').getByRole('link',{name:/Anunciar|Preparar.*anúncio/i})).toHaveCount(0);
+  await expect(page.locator('header a.seller-cta')).toHaveAttribute('href','#conta');
+  await expect(page.locator('main').getByRole('link',{name:'Publicar meu anúncio'})).toHaveAttribute('href','#conta');
+  await expect(page.locator('.mobile-bottom a[href="#conta"]')).toHaveText('Anunciar');
+  if(page.viewportSize()?.width>=761){
+    await expect(page.locator('header a.seller-cta')).toBeVisible();
+  }else{
+    await expect(page.locator('.mobile-bottom').getByRole('link',{name:'Anunciar'})).toBeVisible();
+  }
   await expect(page.locator('footer').getByRole('link',{name:'Área de quem anuncia',exact:true})).toHaveAttribute('href','#conta');
   await page.screenshot({path:info.outputPath('vitrine.png'),fullPage:true});expect(errors).toEqual([]);
 });
