@@ -1,0 +1,36 @@
+name: VENDE+ — Limpar prévias obsoletas autorizadas
+on:
+  push:
+    branches: [feat/cloudinary-fotos-free]
+    paths:
+      - scripts/cleanup-preview-deployments.mjs
+      - .github/workflows/cleanup-preview.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: vendeplus-preview-cleanup
+  cancel-in-progress: false
+jobs:
+  limpar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/deployment-cleanup.test.mjs
+      - name: Remover apenas prévias antigas sem referências em nenhum D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/cleanup-preview-deployments.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preview-cleanup-${{ github.sha }}
+          path: artifacts/cleanup-preview/
+          retention-days: 7
