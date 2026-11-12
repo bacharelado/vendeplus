@@ -1,12 +1,13 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {PhotoPicker} from './PhotoAssistant';
+import {Button,Field} from './UI';
 import {categories,type Draft} from '../data/marketplace';
 import {formatBRL,parseBRL} from '../lib/pricing.mjs';
 import {normalizeWhatsapp} from '../lib/phone.mjs';
 import {createDraftId} from '../lib/drafts.mjs';
 import {listingNotice} from '../lib/listing-notice.mjs';
 
-type Account={id:string;name:string;email:string;neighborhood:string;role:'seller'|'admin';status:string};
+type Account={id:string;name:string;email:string;neighborhood:string;role:'seller'|'admin';status:string;whatsapp?:string};
 type Offer={id:number;title:string;description:string;priceCents:number|null;status:string;fulfillment:string;category:string;condition:string;neighborhood?:string;seller?:string;whatsapp?:string;sellerStatus?:string};
 type Report={id:number;listingId:number;reason:string;details:string;title:string;listingStatus:string;createdAt:number;sellerId?:string};
 type Stats={sellers:number;published:number;reports:number;listings:number};
@@ -44,6 +45,7 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(!!draft||startNew),[editing,setEditing]=useState<Offer|null>(null);
  const [profileName,setProfileName]=useState(''),[bio,setBio]=useState('');
+ const [lastPublished,setLastPublished]=useState<number|null>(null);
  const [readyAccount,setReadyAccount]=useState<string|null>(null);
  const refresh=async(loadProfile=false)=>{
   if(admin){
@@ -56,7 +58,7 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
  };
  useEffect(()=>{let active=true;api('session').then(value=>{if(active)setAccount(value.account)}).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setLoading(false)});return ()=>{active=false}},[]);
  useEffect(()=>{if(account&&(!admin||account.role==='admin')){let active=true;setReadyAccount(null);void refresh(true).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setReadyAccount(account.id)});return ()=>{active=false}}},[account,admin]);
- const execute=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');try{await fn()}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível concluir a solicitação.')}finally{setBusy(false)}};
+ const execute=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');setLastPublished(null);try{await fn()}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível concluir a solicitação.')}finally{setBusy(false)}};
  const authenticate=(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
   const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
@@ -71,7 +73,7 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
   if(photo&&photoAvailable===undefined){setError('Aguarde um instante enquanto verificamos o envio da foto.');return}
   const price=parseBRL(data.price,category==='Serviços');if(!price.ok){setError(price.error);return}
   void execute(async()=>{
-   const payload={...data,priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
+   const payload={...data,fulfillment:String(data.fulfillment||'').trim()||'Retirada ou entrega a combinar pelo WhatsApp.',priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
    const result=await api(editing?'listings/'+editing.id:'listings',editing?'PATCH':'POST',payload);
    const id=editing?.id||Number(result.id);
    let photoNotice=photo&&photoAvailable===false?' O anúncio foi salvo sem foto porque o envio de imagens está indisponível.':'';
@@ -85,10 +87,10 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
     }catch(reason){photoNotice=' A oferta foi salva, mas a foto não: '+(reason instanceof Error?reason.message:'erro de envio')+'.'}
    }
    setRequestId(createDraftId());setShowForm(false);setEditing(null);setSelectedPhoto(null);await refresh();
-   setNotice(listingNotice(result.status)+photoNotice);
+   setLastPublished(result.status==='published'?id:null);setNotice(listingNotice(result.status)+photoNotice);
   });
  };
- const edit=(offer:Offer)=>{setEditing(offer);setSelectedPhoto(null);setCategory(offer.category);setShowForm(true);window.scrollTo({top:0,behavior:'smooth'})};
+ const edit=(offer:Offer)=>{setLastPublished(null);setEditing(offer);setSelectedPhoto(null);setCategory(offer.category);setShowForm(true);window.scrollTo({top:0,behavior:'smooth'})};
  const update=(offer:Offer,status:string)=>void execute(async()=>{const result=await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice(result.warning||(status==='removed'?'Anúncio removido.':'Anúncio atualizado.'))});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
@@ -96,15 +98,15 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
  if(loading||account&&(!admin||account.role==='admin')&&readyAccount!==account.id)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
  return <section className="account-area">
   <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do site.':account?'Meus anúncios.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':'Para começar a anunciar, entre ou crie uma conta. Comprar não exige cadastro.'}</p></div>
-  {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<p role="status" className="account-notice">{notice}</p>}
+  {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<div role="status" className="account-notice"><p>{notice}</p>{lastPublished&&<a className="text-link" href={"#anuncio-"+lastPublished}>Ver meu anúncio na vitrine →</a>}</div>}
   {!account&&!admin&&<div className="seller-steps" aria-label="Como anunciar em três etapas"><span><b>1</b> Entre ou crie sua conta</span><span><b>2</b> Adicione seu produto</span><span><b>3</b> Publique no bairro</span></div>}
   {!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
-    {register&&<label>Seu nome<input name="name" required minLength={2} maxLength={80} autoComplete="name"/></label>}
-    <label>E-mail<input name="email" type="email" required maxLength={254} autoComplete="email"/></label>
+    {register&&<Field label="Seu nome"><input name="name" required minLength={2} maxLength={80} autoComplete="name"/></Field>}
+    <Field label="E-mail"><input name="email" type="email" required maxLength={254} autoComplete="email"/></Field>
     <label>Senha<input name="password" type="password" required minLength={8} maxLength={128} autoComplete={register?'new-password':'current-password'} aria-label="Senha" aria-describedby="password-help"/><span id="password-help" className="field-help">Use de 8 a 128 caracteres. Guarde sua senha: ainda não é possível recuperá-la se você esquecer.</span></label>
     {register&&<><label>Bairro<select name="neighborhood" required><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label><label>WhatsApp<input name="whatsapp" type="tel" required maxLength={32} placeholder="(92) 99999-9999" autoComplete="tel"/></label><label className="consent"><input type="checkbox" name="acceptContact" required/>Autorizo a divulgação do nome e WhatsApp nos anúncios publicados.</label></>}
-    <button className="button primary" disabled={busy} type="submit">{busy?'Aguarde…':register?'Criar conta':'Entrar'}</button>
-    <button type="button" className="button outline" disabled={busy} onClick={()=>{setRegister(!register);setError('')}}>{register?'Já tenho conta':'Criar conta'}</button>
+    <Button disabled={busy} type="submit">{busy?'Aguarde…':register?'Criar conta':'Entrar'}</Button>
+    <Button variant="outline" disabled={busy} onClick={()=>{setRegister(!register);setError('')}}>{register?'Já tenho conta':'Criar conta'}</Button>
    </form>:<>
    <div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setReadyAccount(null);setRegister(false);setOffers([]);setNotice('Você saiu da conta.')})}>Sair</button></div>
    <form className="panel password-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,data=new FormData(form);void execute(async()=>{await api('password','POST',{oldPassword:String(data.get('oldPassword')||''),newPassword:String(data.get('newPassword')||'')});form.reset();setNotice('Senha alterada e outras sessões encerradas.')})}}>
@@ -126,23 +128,26 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
     {showForm&&<form className="draft-form panel seller-listing-form" onSubmit={submit} key={editing?.id||requestId}>
      <h2>{editing?'Editar anúncio':'Seu anúncio começa aqui'}</h2>
      <p className="seller-form-intro">Preencha apenas o necessário. Você pode editar as informações depois.</p>
-     <div className="form-step-title"><span>1</span><div><strong>Mostre o produto</strong><small>Uma foto ajuda, mas é opcional.</small></div></div>
      <PhotoPicker onFile={setSelectedPhoto} initialPhoto={selectedPhoto} storageAvailable={photoAvailable}/>
-     <div className="form-step-title"><span>2</span><div><strong>Descreva sua oferta</strong><small>Informações claras facilitam a conversa.</small></div></div>
-     <label>O que você está vendendo?<input name="title" placeholder="Ex.: Mesa de madeira com 4 cadeiras" required minLength={5} maxLength={90} defaultValue={editing?.title||draft?.title}/></label>
-     <div className="form-row"><label>Categoria<select name="category" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></label><label>Condição<select name="condition" aria-label="Condição" required defaultValue={editing?.condition||draft?.condition||''}><option value="" disabled>Selecione o estado</option><option>Novo</option><option>Usado</option><option>Não aplicável</option></select><span className="field-help">Escolha o estado real do produto.</span></label></div>
-     <label>Preço em reais<input name="price" placeholder="Ex.: 25,00" inputMode="decimal" maxLength={20} defaultValue={editing?.priceCents?((editing.priceCents/100).toFixed(2).replace('.',',')):draft?.priceCents?((draft.priceCents/100).toFixed(2).replace('.',',')):''}/><span className="field-help">Serviços podem ser sob orçamento.</span></label>
-     <label>Conte sobre o produto<textarea name="description" placeholder="Conte o estado do produto e o que está incluído." required minLength={10} maxLength={2000} defaultValue={editing?.description||draft?.description}/></label>
-     <div className="form-step-title"><span>3</span><div><strong>Combine os detalhes</strong><small>Escolha o bairro e informe a entrega.</small></div></div>
-     <label>Bairro<select name="neighborhood" defaultValue={editing?.neighborhood||account.neighborhood}><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label>
-     <label>Como será a entrega?<input name="fulfillment" placeholder="Ex.: Retirada no bairro, em horário combinado" required maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></label>
-     <p className="seller-form-disclaimer">Confira as informações antes de publicar. O VENDE+ não recebe pagamentos, e anúncios sinalizados podem precisar de análise.</p>
-     <button type="submit" className="button primary" disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</button>
+     <Field label="Nome do produto ou serviço"><input name="title" placeholder="Ex.: Mesa de madeira com 4 cadeiras" required minLength={5} maxLength={90} defaultValue={editing?.title||draft?.title}/></Field>
+     <div className="form-row">
+      <Field label="Preço (R$)" hint={category==='Serviços'?'Deixe em branco para combinar um orçamento.':'Informe o valor total do produto.'}><input name="price" placeholder="Ex.: 25,00" inputMode="decimal" required={category!=='Serviços'} maxLength={20} defaultValue={(editing?.priceCents??draft?.priceCents)!=null?((Number(editing?.priceCents??draft?.priceCents)/100).toFixed(2).replace('.',',')):''}/></Field>
+      <Field label="Bairro"><select name="neighborhood" defaultValue={editing?.neighborhood||account.neighborhood}><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></Field>
+     </div>
+     <div className="form-row">
+      <Field label="Categoria"><select name="category" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></Field>
+      <Field label="Condição"><select name="condition" aria-label="Condição" required defaultValue={editing?.condition||draft?.condition||''}><option value="" disabled>Selecione o estado</option><option>Novo</option><option>Usado</option><option>Não aplicável</option></select></Field>
+     </div>
+     <Field label="Descrição" hint="Conte o estado, os detalhes e o que está incluído."><textarea name="description" placeholder="Ex.: Mesa usada, bem conservada, com quatro cadeiras." required minLength={10} maxLength={2000} defaultValue={editing?.description||draft?.description}/></Field>
+     <Field label="Entrega ou retirada (opcional)" hint="Se deixar em branco, vocês combinam pelo WhatsApp."><input name="fulfillment" placeholder="Ex.: Retirada no Poranga II" maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></Field>
+     <div className="contact-summary"><strong>WhatsApp para receber interessados</strong><span>{account.whatsapp||'O número cadastrado na sua conta'}</span><small>O contato da sua conta acompanha o anúncio automaticamente.</small></div>
+     <p className="seller-form-disclaimer">Seu contato aparece no anúncio. Anúncios sinalizados podem precisar de análise. O VENDE+ não recebe pagamentos.</p>
+     <div className="publish-actions"><Button type="submit" full disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</Button></div>
      {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{setEditing(null);setShowForm(false)}}>Cancelar edição</button>}
     </form>}
     <h2>Meus anúncios</h2>
     {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">{statuses[offer.status]||offer.status}</span><h3>{offer.title}</h3><strong>{formatBRL(offer.priceCents)}</strong><p>{offer.description}</p><p>{offer.fulfillment}</p><div className="account-toolbar"><button className="button outline" onClick={()=>edit(offer)} disabled={busy}>Editar</button>{offer.status==='published'&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'paused')}>Pausar</button>}{offer.status==='paused'&&<button className="button primary" disabled={busy} onClick={()=>update(offer,'published')}>Reativar</button>}{['published','paused'].includes(offer.status)&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'sold')}>Marcar vendido</button>}<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Remover este anúncio?'))update(offer,'removed')}}>Remover</button></div></article>)}</div>:<p className="account-notice">Você ainda não publicou nenhum anúncio.</p>}
-    <form className="draft-form panel profile-form" onSubmit={saveProfile}><h2>Editar meu perfil público</h2><label>Nome comercial<input value={profileName} onChange={e=>setProfileName(e.target.value)} minLength={2} maxLength={80} required/></label><label>Sobre você ou seu negócio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength={600}/></label><button className="button primary" disabled={busy}>Salvar perfil</button></form>
+    <details className="panel profile-settings"><summary>Editar meu perfil público</summary><form className="draft-form profile-form" onSubmit={saveProfile}><h2>Editar meu perfil público</h2><label>Nome comercial<input value={profileName} onChange={e=>setProfileName(e.target.value)} minLength={2} maxLength={80} required/></label><label>Sobre você ou seu negócio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength={600}/></label><Button type="submit" disabled={busy}>Salvar perfil</Button></form></details>
    </>}
   </>}
  </section>;
