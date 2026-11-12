@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
 :root{font-family:'DM Sans',system-ui,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;color:#172033;background:#f6f7f9}
+:root[data-theme=dark]{color-scheme:dark;background:#101722;color:#f1f5f9}
+:root[data-theme=light]{color-scheme:light;background:#f6f7f9;color:#172033}
 *{box-sizing:border-box}
 body{margin:0}
 button,input,select,textarea{font:inherit}
@@ -15,12 +17,12 @@ h2{font-size:1.2rem;line-height:1.35;letter-spacing:-.025em}
 h3{font-size:1rem;line-height:1.4}
 p{line-height:1.65}
 small{font-size:.8rem}
-.app{--bg:#f6f7f9;--surface:#fff;--fg:#172033;--muted:#627086;--border:#dfe4eb;--soft:#eef2f7;--brand:#2456c7;--brand-hover:#1d45a0;--button-ink:#fff;--green:var(--brand);--green-deep:var(--brand-hover);--error:#9d2525;--error-bg:#fff3f3;--radius:9px;background:var(--bg);color:var(--fg);min-height:100vh}
+.app{color-scheme:light;--bg:#f6f7f9;--surface:#fff;--fg:#172033;--muted:#627086;--border:#dfe4eb;--soft:#eef2f7;--brand:#2456c7;--brand-hover:#1d45a0;--button-ink:#fff;--green:var(--brand);--green-deep:var(--brand-hover);--error:#9d2525;--error-bg:#fff3f3;--radius:9px;background:var(--bg);color:var(--fg);min-height:100vh}
 .app.dark{--bg:#101722;--surface:#1a2433;--fg:#f1f5f9;--muted:#acb9cc;--border:#354254;--soft:#253246;--brand:#9cbbff;--brand-hover:#c3d5ff;--button-ink:#14213a;--error:#ffb5b5;--error-bg:#382328;color-scheme:dark}
 .container{width:100%;max-width:1200px;padding:0 28px;margin:0 auto}
 .icon{flex:none;vertical-align:middle}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:3px}
-.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:7px;min-height:46px;padding:12px 18px;font-size:.86rem;font-weight:600;text-align:center;line-height:1.35;transition:background .15s,border-color .15s}
+.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:7px;min-height:46px;padding:12px 18px;font-size:.86rem;font-weight:600;text-align:center;line-height:1.35;transition:border-color .15s}
 .button.primary{background:var(--brand);color:var(--button-ink)}
 .button.primary:hover{background:var(--brand-hover)}
 .button.outline{background:var(--surface);color:var(--fg);border-color:var(--border)}
