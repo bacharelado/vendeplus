@@ -1,10 +1,11 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {PhotoPicker} from './PhotoAssistant';
 import {Button,Field} from './UI';
-import {categories,type Draft} from '../data/marketplace';
+import {DraftList} from './DraftList';
+import {categories,type Draft,type Category,type Condition} from '../data/marketplace';
 import {formatBRL,parseBRL} from '../lib/pricing.mjs';
 import {normalizeWhatsapp} from '../lib/phone.mjs';
-import {createDraftId} from '../lib/drafts.mjs';
+import {createDraftId,readDrafts,writeDrafts} from '../lib/drafts.mjs';
 import {listingNotice} from '../lib/listing-notice.mjs';
 
 type Account={id:string;name:string;email:string;neighborhood:string;role:'seller'|'admin';status:string;whatsapp?:string};
@@ -35,7 +36,9 @@ async function preparePhoto(file:File):Promise<Blob>{
  }
  throw new Error('Foto muito grande. Escolha uma imagem menor.');
 }
-export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:{draft?:Draft;admin?:boolean;initialPhoto?:File|null;startNew?:boolean}){
+export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,startNew=false,view='area',draftId,editId}:{draft?:Draft;admin?:boolean;initialPhoto?:File|null;startNew?:boolean;view?:'entrar'|'area'|'publicar';draftId?:string;editId?:number}){
+ const [draft]=useState<Draft|undefined>(()=>{if(providedDraft)return providedDraft;try{return readDrafts(localStorage).find(item=>item.id===draftId)}catch{return undefined}});
+
  const [selectedPhoto,setSelectedPhoto]=useState<File|null>(initialPhoto);
  const [photoAvailable,setPhotoAvailable]=useState<boolean>();
  useEffect(()=>{let active=true;fetch('/api/media-upload',{cache:'no-store',signal:AbortSignal.timeout(8000)}).then(async response=>{const value=await response.json();if(active)setPhotoAvailable(response.ok&&value.available===true)}).catch(()=>{if(active)setPhotoAvailable(false)});return ()=>{active=false}},[]);
@@ -43,7 +46,7 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
  const [offers,setOffers]=useState<Offer[]>([]),[reports,setReports]=useState<Report[]>([]),[stats,setStats]=useState<Stats|null>(null);
  const [sellers,setSellers]=useState<AdminSeller[]>([]),[allListings,setAllListings]=useState<AdminListing[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
- const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(!!draft||startNew),[editing,setEditing]=useState<Offer|null>(null);
+ const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(view==='publicar'||!!draft||startNew),[editing,setEditing]=useState<Offer|null>(null);
  const [profileName,setProfileName]=useState(''),[bio,setBio]=useState('');
  const [lastPublished,setLastPublished]=useState<number|null>(null);
  const [readyAccount,setReadyAccount]=useState<string|null>(null);
@@ -58,6 +61,21 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
  };
  useEffect(()=>{let active=true;api('session').then(value=>{if(active)setAccount(value.account)}).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setLoading(false)});return ()=>{active=false}},[]);
  useEffect(()=>{if(account&&(!admin||account.role==='admin')){let active=true;setReadyAccount(null);void refresh(true).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setReadyAccount(account.id)});return ()=>{active=false}}},[account,admin]);
+ useEffect(()=>{
+  if(loading||admin)return;
+  if(!account&&view==='publicar'){
+   try{sessionStorage.setItem('vendeplus:after-login',location.hash)}catch{}
+   location.hash='entrar';
+  }else if(account&&view==='entrar'){
+   let target='#area';try{const saved=sessionStorage.getItem('vendeplus:after-login');if(saved&&/^#publicar(?:\?(?:rascunho|anuncio)=[a-zA-Z0-9-]+)?$/.test(saved))target=saved;sessionStorage.removeItem('vendeplus:after-login')}catch{}
+   location.hash=target;
+  }
+ },[loading,account,admin,view]);
+ useEffect(()=>{
+  if(view!=='publicar'||!account||readyAccount!==account.id)return;
+  if(draftId&&!draft){setError('Este rascunho não está salvo neste navegador.');setShowForm(false);return}
+  if(editId){const own=offers.find(offer=>offer.id===editId);if(!own){setError('Anúncio não encontrado na sua conta.');setShowForm(false);return}setEditing(own);setCategory(own.category);setShowForm(true)}
+ },[view,account,readyAccount,editId,draftId,draft,offers]);
  const execute=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');setLastPublished(null);try{await fn()}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível concluir a solicitação.')}finally{setBusy(false)}};
  const authenticate=(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
@@ -90,17 +108,28 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
    setLastPublished(result.status==='published'?id:null);setNotice(listingNotice(result.status)+photoNotice);
   });
  };
- const edit=(offer:Offer)=>{setLastPublished(null);setEditing(offer);setSelectedPhoto(null);setCategory(offer.category);setShowForm(true);window.scrollTo({top:0,behavior:'smooth'})};
+ const edit=(offer:Offer)=>{location.hash='publicar?anuncio='+offer.id};
+ const saveDraft=(form:HTMLFormElement|null)=>{
+  if(!form||!form.reportValidity())return;
+  const data=new FormData(form),price=parseBRL(data.get('price'),category==='Serviços');if(!price.ok){setError(price.error);return}
+  const title=String(data.get('title')||'').trim(),description=String(data.get('description')||'').trim();
+  if(title.length<5||description.length<10){setError('Informe um nome e uma descrição para salvar o rascunho.');return}
+  try{
+   const item:Draft={id:draft?.id||createDraftId(),title,description,priceCents:price.cents,category:category as Category,condition:String(data.get('condition')) as Condition,fulfillment:String(data.get('fulfillment')||'').trim()||'Retirada ou entrega a combinar pelo WhatsApp.',updatedAt:Date.now()};
+   writeDrafts(localStorage,[item,...readDrafts(localStorage).filter(old=>old.id!==item.id)]);location.hash='area';
+  }catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível salvar o rascunho.')}
+ };
  const update=(offer:Offer,status:string)=>void execute(async()=>{const result=await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice(result.warning||(status==='removed'?'Anúncio removido.':'Anúncio atualizado.'))});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
  const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh(true);setNotice('Perfil atualizado.')})};
  if(loading||account&&(!admin||account.role==='admin')&&readyAccount!==account.id)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
  return <section className="account-area">
-  <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do site.':account?'Meus anúncios.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':'Para começar a anunciar, entre ou crie uma conta. Comprar não exige cadastro.'}</p></div>
+  <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do site.':view==='publicar'?(editId?'Editar anúncio.':'Publicar anúncio.'):view==='area'?'Minha área.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':'Para começar a anunciar, entre ou crie uma conta. Comprar não exige cadastro.'}</p></div>
   {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<div role="status" className="account-notice"><p>{notice}</p>{lastPublished&&<a className="text-link" href={"#anuncio-"+lastPublished}>Ver meu anúncio na vitrine →</a>}</div>}
-  {!account&&!admin&&<div className="seller-steps" aria-label="Como anunciar em três etapas"><span><b>1</b> Entre ou crie sua conta</span><span><b>2</b> Adicione seu produto</span><span><b>3</b> Publique no bairro</span></div>}
-  {!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
+  {view==='publicar'&&<a className="back" href="#area">← Voltar à Minha área</a>}
+  {!account&&!admin&&view==='entrar'&&<div className="seller-steps" aria-label="Como anunciar em três etapas"><span><b>1</b> Entre ou crie sua conta</span><span><b>2</b> Adicione seu produto</span><span><b>3</b> Publique no bairro</span></div>}
+  {!account&&view==='area'&&!admin?<><p className="account-notice">Entre para gerenciar seus anúncios e seu perfil.</p><a href="#entrar" className="button primary">Entrar ou criar conta</a><DraftList/></>:!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
     {register&&<Field label="Seu nome"><input name="name" required minLength={2} maxLength={80} autoComplete="name"/></Field>}
     <Field label="E-mail"><input name="email" type="email" required maxLength={254} autoComplete="email"/></Field>
     <label>Senha<input name="password" type="password" required minLength={8} maxLength={128} autoComplete={register?'new-password':'current-password'} aria-label="Senha" aria-describedby="password-help"/><span id="password-help" className="field-help">Use de 8 a 128 caracteres. Guarde sua senha: ainda não é possível recuperá-la se você esquecer.</span></label>
@@ -109,9 +138,9 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
     <Button variant="outline" disabled={busy} onClick={()=>{setRegister(!register);setError('')}}>{register?'Já tenho conta':'Criar conta'}</Button>
    </form>:<>
    <div className="account-toolbar"><span>{account.email} · {account.neighborhood}</span><button className="button outline" disabled={busy} onClick={()=>void execute(async()=>{await api('logout','POST',{});setAccount(null);setReadyAccount(null);setRegister(false);setOffers([]);setNotice('Você saiu da conta.')})}>Sair</button></div>
-   <form className="panel password-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,data=new FormData(form);void execute(async()=>{await api('password','POST',{oldPassword:String(data.get('oldPassword')||''),newPassword:String(data.get('newPassword')||'')});form.reset();setNotice('Senha alterada e outras sessões encerradas.')})}}>
+   {view!=='publicar'&&<form className="panel password-form" onSubmit={event=>{event.preventDefault();const form=event.currentTarget,data=new FormData(form);void execute(async()=>{await api('password','POST',{oldPassword:String(data.get('oldPassword')||''),newPassword:String(data.get('newPassword')||'')});form.reset();setNotice('Senha alterada e outras sessões encerradas.')})}}>
      <details><summary>Segurança da conta — alterar minha senha</summary><div className="password-fields"><label>Senha atual<input type="password" name="oldPassword" required minLength={8} maxLength={128} autoComplete="current-password"/></label><label>Nova senha<input type="password" name="newPassword" required minLength={8} maxLength={128} autoComplete="new-password"/></label><button className="button outline" disabled={busy}>Alterar senha</button></div></details>
-   </form>
+   </form>}
    {admin&&account.role!=='admin'?<p className="local-note">Acesso restrito à administração.</p>:admin?<>
     {stats&&<div className="stat-grid"><div className="stat-card"><strong>{stats.sellers}</strong><span>Contas</span></div><div className="stat-card"><strong>{stats.published}</strong><span>Anúncios públicos</span></div><div className="stat-card"><strong>{stats.listings}</strong><span>Anúncios registrados</span></div><div className="stat-card"><strong>{stats.reports}</strong><span>Denúncias abertas</span></div></div>}
     <h2>Gestão de vendedores</h2>
@@ -124,8 +153,9 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
     {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">Em verificação</span><h3>{offer.title}</h3><p>{offer.description}</p><p>Vendedor: {offer.seller} · {offer.whatsapp} · {offer.sellerStatus==='approved'?'Contato verificado':'Contato não verificado'}</p><div className="account-toolbar">{offer.sellerStatus==='pending'&&<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Você confirmou que o vendedor controla o WhatsApp?'))void execute(async()=>{await api('moderation/'+offer.id+'/seller','POST',{confirmContact:true});await refresh()})}}>Confirmar vendedor</button>}<button className="button primary" disabled={busy||offer.sellerStatus!=='approved'} onClick={()=>moderate(offer,'published')}>Publicar</button><button className="button outline" disabled={busy} onClick={()=>moderate(offer,'rejected')}>Rejeitar</button></div></article>)}</div>:<p className="account-notice">Nenhuma oferta sinalizada.</p>}
    </>:<>
     <p className="account-notice">{account.status==='suspended'?'Conta suspensa.':account.status==='pending'?'Seu contato ainda não foi confirmado pela administração. Você pode gerenciar seus anúncios, mas não informe aos compradores que seu número foi verificado.':'Seus anúncios aparecem aqui. Você pode editar, pausar ou marcar como vendido.'}</p>
-    <div className="account-toolbar"><button className="button primary" aria-expanded={showForm} disabled={busy} onClick={()=>{setEditing(null);setCategory('Alimentação');setShowForm(v=>!v)}}>{showForm?'Fechar formulário':'Publicar novo anúncio'}</button><a className="button outline" href={'#vendedor-'+account.id}>Meu perfil público</a>{account.role==='admin'&&<a className="button outline" href="#admin">Administração</a>}</div>
-    {showForm&&<form className="draft-form panel seller-listing-form" onSubmit={submit} key={editing?.id||requestId}>
+    {view==='area'&&<div className="account-toolbar"><a className="button primary" href="#publicar">Publicar novo anúncio</a><a className="button outline" href={'#vendedor-'+account.id}>Meu perfil público</a>{account.role==='admin'&&<a className="button outline" href="#admin">Administração</a>}</div>}
+
+    {view==='publicar'&&showForm&&(!editId||editing)&&<form className="draft-form panel seller-listing-form" onSubmit={submit} key={editing?.id||requestId}>
      <h2>{editing?'Editar anúncio':'Seu anúncio começa aqui'}</h2>
      <p className="seller-form-intro">Preencha apenas o necessário. Você pode editar as informações depois.</p>
      <PhotoPicker onFile={setSelectedPhoto} initialPhoto={selectedPhoto} storageAvailable={photoAvailable}/>
@@ -142,12 +172,13 @@ export function SellerArea({draft,admin=false,initialPhoto=null,startNew=false}:
      <Field label="Entrega ou retirada (opcional)" hint="Se deixar em branco, vocês combinam pelo WhatsApp."><input name="fulfillment" placeholder="Ex.: Retirada no Poranga II" maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></Field>
      <div className="contact-summary"><strong>WhatsApp para receber interessados</strong><span>{account.whatsapp||'O número cadastrado na sua conta'}</span><small>O contato da sua conta acompanha o anúncio automaticamente.</small></div>
      <p className="seller-form-disclaimer">Seu contato aparece no anúncio. Anúncios sinalizados podem precisar de análise. O VENDE+ não recebe pagamentos.</p>
-     <div className="publish-actions"><Button type="submit" full disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</Button></div>
-     {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{setEditing(null);setShowForm(false)}}>Cancelar edição</button>}
+     <div className="publish-actions">{!editing&&<Button variant="outline" disabled={busy} onClick={e=>saveDraft(e.currentTarget.form)}>Salvar rascunho</Button>}<Button type="submit" full disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</Button></div>
+     {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{location.hash='area'}}>Cancelar edição</button>}
     </form>}
-    <h2>Meus anúncios</h2>
+    {view==='area'&&<><h2>Meus anúncios</h2>
     {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">{statuses[offer.status]||offer.status}</span><h3>{offer.title}</h3><strong>{formatBRL(offer.priceCents)}</strong><p>{offer.description}</p><p>{offer.fulfillment}</p><div className="account-toolbar"><button className="button outline" onClick={()=>edit(offer)} disabled={busy}>Editar</button>{offer.status==='published'&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'paused')}>Pausar</button>}{offer.status==='paused'&&<button className="button primary" disabled={busy} onClick={()=>update(offer,'published')}>Reativar</button>}{['published','paused'].includes(offer.status)&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'sold')}>Marcar vendido</button>}<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Remover este anúncio?'))update(offer,'removed')}}>Remover</button></div></article>)}</div>:<p className="account-notice">Você ainda não publicou nenhum anúncio.</p>}
-    <details className="panel profile-settings"><summary>Editar meu perfil público</summary><form className="draft-form profile-form" onSubmit={saveProfile}><h2>Editar meu perfil público</h2><label>Nome comercial<input value={profileName} onChange={e=>setProfileName(e.target.value)} minLength={2} maxLength={80} required/></label><label>Sobre você ou seu negócio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength={600}/></label><Button type="submit" disabled={busy}>Salvar perfil</Button></form></details>
+    <DraftList/>
+    <details className="panel profile-settings"><summary>Editar meu perfil público</summary><form className="draft-form profile-form" onSubmit={saveProfile}><h2>Editar meu perfil público</h2><label>Nome comercial<input value={profileName} onChange={e=>setProfileName(e.target.value)} minLength={2} maxLength={80} required/></label><label>Sobre você ou seu negócio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength={600}/></label><Button type="submit" disabled={busy}>Salvar perfil</Button></form></details></>}
    </>}
   </>}
  </section>;
