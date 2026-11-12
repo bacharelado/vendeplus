@@ -199,24 +199,12 @@ jobs:
           console.log('Prévia aprovada nos testes HTTP de headers, sessão e 404.');
           NODE
 
+      - name: Validar sintaxe do teste IDOR real
+        if: steps.target.outputs.url != ''
+        run: node --check scripts/preview-idor-live.mjs
+
       - name: Testar interface, anúncios e experiência mobile
         run: npx playwright test
-
-      - name: Validar sintaxe do teste IDOR real
-        if: steps.target.outputs.url != ''
-        run: node --check scripts/preview-idor-live.mjs
-
-      - name: Testar isolamento real entre duas contas na prévia
-        if: always() && steps.target.outputs.url != ''
-        timeout-minutes: 10
-        env:
-          PREVIEW_URL: ${{ steps.target.outputs.url }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: node scripts/preview-idor-live.mjs
-
-      - name: Validar sintaxe do teste IDOR real
-        if: steps.target.outputs.url != ''
-        run: node --check scripts/preview-idor-live.mjs
 
       - name: Testar isolamento real entre duas contas na prévia
         if: always() && steps.target.outputs.url != ''
