@@ -34,7 +34,7 @@ async function register(db,identity){
       acceptContact:true
     }
   });
-  assert.equal(response.status,201,await response.text());
+  assert.equal(response.status,201);
   const cookie=response.headers.get('set-cookie')?.split(';',1)[0];
   assert.ok(cookie,'registro deve emitir cookie de sessão');
   return cookie;
@@ -57,10 +57,10 @@ test('IDOR: outra conta não lista, edita, remove nem envia foto para anúncio a
         condition:'Usado',
         fulfillment:'Retirada a combinar',
         neighborhood:'Poranga I',
-        requestId:'20261112-idor-test-account-a'
+        requestId:'20261112-1d0a-4000-8000-00000000000a'
       }
     });
-    assert.equal(created.status,201,await created.text());
+    assert.equal(created.status,201);
     const listingId=(await created.json()).id;
 
     const bListings=await accountRequest(db,'/listings',{cookie:cookieB});
@@ -111,7 +111,7 @@ test('IDOR: outra conta não lista, edita, remove nem envia foto para anúncio a
         neighborhood:'Poranga I'
       }
     });
-    assert.equal(ownerEdit.status,200,await ownerEdit.text());
+    assert.equal(ownerEdit.status,200);
 
     const final=sqlite.prepare('SELECT title FROM marketplace_listings WHERE id=?').get(listingId);
     assert.equal(final.title,'Mesa de teste IDOR atualizada');
