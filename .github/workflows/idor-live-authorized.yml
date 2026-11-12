@@ -1,0 +1,27 @@
+name: VENDE+ — Teste real de isolamento entre contas
+on:
+  push:
+    branches: [ops/idor-duas-contas-20261112]
+    paths:
+      - scripts/idor-live-authorized.mjs
+      - .github/workflows/idor-live-authorized.yml
+permissions:
+  contents: read
+concurrency:
+  group: vendeplus-idor-live-authorized
+  cancel-in-progress: false
+jobs:
+  isolamento:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Usar duas contas temporárias e limpar somente os dados desta execução
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/idor-live-authorized.mjs
