@@ -74,7 +74,40 @@ jobs:
                 const previewMatch = body.match(/Branch Preview URL:[\s\S]*?<a[^>]+href=['"]([^'"]+)['"]/i);
 
                 if (!commitMatch || !previewMatch) continue;
-                if (!expectedSha.startsWith(commitMatch[1].toLowerCase())) continue;
+
+                let deployedSha = commitMatch[1].toLowerCase();
+                let exactCommit = expectedSha.startsWith(deployedSha);
+
+                if (!exactCommit) {
+                  try {
+                    const deployedCommit = await github.rest.repos.getCommit({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: deployedSha
+                    });
+                    deployedSha = deployedCommit.data.sha;
+                    const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      basehead: deployedSha + '...' + expectedSha
+                    });
+                    const changedFiles = comparison.data.files || [];
+                    const ciOnly = comparison.data.status === 'identical'
+                      || (comparison.data.status === 'ahead'
+                        && changedFiles.length > 0
+                        && changedFiles.every(file =>
+                          file.filename.startsWith('.github/workflows/')
+                          || file.filename.startsWith('scripts/')
+                          || file.filename.startsWith('tests/')
+                          || file.filename.startsWith('docs/')
+                          || ['README.md', 'CHANGELOG.md'].includes(file.filename)
+                        ));
+                    if (!ciOnly) continue;
+                    core.info('Reutilizando deploy ' + deployedSha.slice(0, 7) + ': desde ele, somente arquivos de CI/testes/documentação mudaram.');
+                  } catch {
+                    continue;
+                  }
+                }
 
                 let preview;
                 try {
@@ -92,7 +125,7 @@ jobs:
                 }
 
                 core.setOutput('url', preview.origin);
-                core.info('Prévia encontrada para o commit atual: ' + preview.origin);
+                core.info((exactCommit ? 'Prévia do commit atual: ' : 'Prévia compatível com o código atual: ') + preview.origin);
                 return;
               }
 
