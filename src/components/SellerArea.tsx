@@ -2,10 +2,10 @@ import {useEffect,useState,type FormEvent} from 'react';
 import {PhotoPicker} from './PhotoAssistant';
 import {Button,Field} from './UI';
 import {DraftList} from './DraftList';
-import {categories,type Draft,type Category,type Condition} from '../data/marketplace';
+import {categories,type Draft} from '../data/marketplace';
 import {formatBRL,parseBRL} from '../lib/pricing.mjs';
 import {normalizeWhatsapp} from '../lib/phone.mjs';
-import {createDraftId,readDrafts,writeDrafts} from '../lib/drafts.mjs';
+import {createDraftId,readDrafts} from '../lib/drafts.mjs';
 import {listingNotice} from '../lib/listing-notice.mjs';
 
 type Account={id:string;name:string;email:string;neighborhood:string;role:'seller'|'admin';status:string;whatsapp?:string};
@@ -63,11 +63,11 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  useEffect(()=>{if(account&&(!admin||account.role==='admin')){let active=true;setReadyAccount(null);void refresh(true).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setReadyAccount(account.id)});return ()=>{active=false}}},[account,admin]);
  useEffect(()=>{
   if(loading||admin)return;
-  if(!account&&view==='publicar'){
-   try{sessionStorage.setItem('vendeplus:after-login','#publicar'+(draftId?'?rascunho='+draftId:editId?'?anuncio='+editId:''))}catch{}
+  if(!account&&(view==='publicar'||view==='area')){
+   try{sessionStorage.setItem('vendeplus:after-login',view==='area'?'#area':'#publicar'+(draftId?'?rascunho='+draftId:editId?'?anuncio='+editId:''))}catch{}
    location.hash='entrar';
   }else if(account&&view==='entrar'){
-   let target='#area';try{const saved=sessionStorage.getItem('vendeplus:after-login');if(saved&&/^#publicar(?:\?(?:rascunho|anuncio)=[a-zA-Z0-9-]+)?$/.test(saved))target=saved;sessionStorage.removeItem('vendeplus:after-login')}catch{}
+   let target='#area';try{const saved=sessionStorage.getItem('vendeplus:after-login');if(saved&&/^(?:#area|#publicar(?:\?(?:rascunho|anuncio)=[a-zA-Z0-9-]+)?)$/.test(saved))target=saved;sessionStorage.removeItem('vendeplus:after-login')}catch{}
    location.hash=target;
   }
  },[loading,account,admin,view,draftId,editId]);
@@ -109,27 +109,16 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
   });
  };
  const edit=(offer:Offer)=>{location.hash='publicar?anuncio='+offer.id};
- const saveDraft=(form:HTMLFormElement|null)=>{
-  if(!form||!form.reportValidity())return;
-  const data=new FormData(form),price=parseBRL(data.get('price'),category==='Serviços');if(!price.ok){setError(price.error);return}
-  const title=String(data.get('title')||'').trim(),description=String(data.get('description')||'').trim();
-  if(title.length<5||description.length<10){setError('Informe um nome e uma descrição para salvar o rascunho.');return}
-  try{
-   const item:Draft={id:draft?.id||createDraftId(),title,description,priceCents:price.cents,category:category as Category,condition:String(data.get('condition')) as Condition,fulfillment:String(data.get('fulfillment')||'').trim()||'Retirada ou entrega a combinar pelo WhatsApp.',updatedAt:Date.now()};
-   writeDrafts(localStorage,[item,...readDrafts(localStorage).filter(old=>old.id!==item.id)]);location.hash='area';
-  }catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível salvar o rascunho.')}
- };
  const update=(offer:Offer,status:string)=>void execute(async()=>{const result=await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice(result.warning||(status==='removed'?'Anúncio removido.':'Anúncio atualizado.'))});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
  const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh(true);setNotice('Perfil atualizado.')})};
- if(loading||account&&(!admin||account.role==='admin')&&readyAccount!==account.id)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
+ if(loading||!account&&!admin&&(view==='publicar'||view==='area')||account&&(!admin||account.role==='admin')&&readyAccount!==account.id)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
  return <section className="account-area">
   <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do site.':view==='publicar'?(editId?'Editar anúncio.':'Publicar anúncio.'):view==='area'?'Minha área.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':'Para começar a anunciar, entre ou crie uma conta. Comprar não exige cadastro.'}</p></div>
   {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<div role="status" className="account-notice"><p>{notice}</p>{lastPublished&&<a className="text-link" href={"#anuncio-"+lastPublished}>Ver meu anúncio na vitrine →</a>}</div>}
   {view==='publicar'&&<a className="back" href="#area">← Voltar à Minha área</a>}
-  {!account&&!admin&&view==='entrar'&&<div className="seller-steps" aria-label="Como anunciar em três etapas"><span><b>1</b> Entre ou crie sua conta</span><span><b>2</b> Adicione seu produto</span><span><b>3</b> Publique no bairro</span></div>}
-  {!account&&view==='area'&&!admin?<><p className="account-notice">Entre para gerenciar seus anúncios e seu perfil.</p><a href="#entrar" className="button primary">Entrar ou criar conta</a><DraftList/></>:!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
+  {!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
     {register&&<Field label="Seu nome"><input name="name" required minLength={2} maxLength={80} autoComplete="name"/></Field>}
     <Field label="E-mail"><input name="email" type="email" required maxLength={254} autoComplete="email"/></Field>
     <label>Senha<input name="password" type="password" required minLength={8} maxLength={128} autoComplete={register?'new-password':'current-password'} aria-label="Senha" aria-describedby="password-help"/><span id="password-help" className="field-help">Use de 8 a 128 caracteres. Guarde sua senha: ainda não é possível recuperá-la se você esquecer.</span></label>
@@ -172,7 +161,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
      <Field label="Entrega ou retirada (opcional)" hint="Se deixar em branco, vocês combinam pelo WhatsApp."><input name="fulfillment" placeholder="Ex.: Retirada no Poranga II" maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></Field>
      <div className="contact-summary"><strong>WhatsApp para receber interessados</strong><span>{account.whatsapp||'O número cadastrado na sua conta'}</span><small>O contato da sua conta acompanha o anúncio automaticamente.</small></div>
      <p className="seller-form-disclaimer">Seu contato aparece no anúncio. Anúncios sinalizados podem precisar de análise. O VENDE+ não recebe pagamentos.</p>
-     <div className="publish-actions">{!editing&&<Button variant="outline" disabled={busy} onClick={e=>saveDraft(e.currentTarget.form)}>Salvar rascunho</Button>}<Button type="submit" full disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</Button></div>
+     <div className="publish-actions"><Button type="submit" full disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</Button></div>
      {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{location.hash='area'}}>Cancelar edição</button>}
     </form>}
     {view==='area'&&<><h2>Meus anúncios</h2>
