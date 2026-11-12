@@ -102,35 +102,42 @@ async function cleanup(base,databaseId,accounts){
     emails
   );
 
+  const cleanupErrors=[];
   for(const row of rows){
-    const id=String(row.id);
-    const email=String(row.email);
-    assert.ok(emails.includes(email),'A limpeza encontrou uma conta fora do conjunto de teste.');
-    const listingRows=await d1Query(databaseId,'SELECT id FROM marketplace_listings WHERE seller_id=?',[id]);
-    const listingIds=listingRows.map(item=>Number(item.id));
+    try{
+      const id=String(row.id);
+      const email=String(row.email);
+      assert.ok(emails.includes(email),'A limpeza encontrou uma conta fora do conjunto de teste.');
+      const listingRows=await d1Query(databaseId,'SELECT id FROM marketplace_listings WHERE seller_id=?',[id]);
+      const listingIds=listingRows.map(item=>Number(item.id));
 
-    const deletes=[
-      ['DELETE FROM marketplace_password_resets WHERE account_id=?',[id]],
-      ['DELETE FROM marketplace_sessions WHERE account_id=?',[id]],
-      ['DELETE FROM marketplace_seller_reviews WHERE seller_id=?',[id]],
-      ['DELETE FROM marketplace_moderation_log WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_id=?)',[id]],
-      ['DELETE FROM marketplace_listing_events WHERE seller_id=?',[id]],
-      ['DELETE FROM marketplace_listing_details WHERE seller_id=?',[id]],
-      ['DELETE FROM marketplace_reports WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_id=?)',[id]],
-      ['DELETE FROM marketplace_listings WHERE seller_id=?',[id]],
-      ['DELETE FROM marketplace_seller_profiles WHERE seller_id=?',[id]],
-      ['DELETE FROM marketplace_accounts WHERE id=?',[id]],
-      ['DELETE FROM marketplace_sellers WHERE id=?',[id]]
-    ];
-    for(const [sql,params] of deletes)await d1Query(databaseId,sql,params);
+      const deletes=[
+        ['DELETE FROM marketplace_password_resets WHERE account_id=?',[id]],
+        ['DELETE FROM marketplace_sessions WHERE account_id=?',[id]],
+        ['DELETE FROM marketplace_seller_reviews WHERE seller_id=?',[id]],
+        ['DELETE FROM marketplace_moderation_log WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_id=?)',[id]],
+        ['DELETE FROM marketplace_listing_events WHERE seller_id=?',[id]],
+        ['DELETE FROM marketplace_listing_details WHERE seller_id=?',[id]],
+        ['DELETE FROM marketplace_reports WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_id=?)',[id]],
+        ['DELETE FROM marketplace_listings WHERE seller_id=?',[id]],
+        ['DELETE FROM marketplace_seller_profiles WHERE seller_id=?',[id]],
+        ['DELETE FROM marketplace_accounts WHERE id=?',[id]],
+        ['DELETE FROM marketplace_sellers WHERE id=?',[id]]
+      ];
+      for(const [sql,params] of deletes)await d1Query(databaseId,sql,params);
 
-    const keys=[
-      createHash('sha256').update('auth-email:'+email).digest('hex'),
-      createHash('sha256').update('listing:'+id).digest('hex')
-    ];
-    await d1Query(databaseId,'DELETE FROM marketplace_rate_limits WHERE key IN (?,?)',keys);
-    console.log('Conta sintética removida e dados relacionados limpos:',email,'; anúncios:',listingIds.length);
+      const keys=[
+        createHash('sha256').update('auth-email:'+email).digest('hex'),
+        createHash('sha256').update('listing:'+id).digest('hex')
+      ];
+      await d1Query(databaseId,'DELETE FROM marketplace_rate_limits WHERE key IN (?,?)',keys);
+      console.log('Conta sintética removida e dados relacionados limpos:',email,'; anúncios:',listingIds.length);
+    }catch(error){
+      cleanupErrors.push(error);
+      console.error('Falha ao limpar uma conta sintética:',error instanceof Error?error.message:'erro desconhecido');
+    }
   }
+  if(cleanupErrors.length)throw new AggregateError(cleanupErrors,'A limpeza de uma ou mais contas sintéticas falhou.');
 
   const remaining=await d1Query(databaseId,
     'SELECT COUNT(*) AS total FROM marketplace_accounts WHERE email IN ('+placeholders+')',
