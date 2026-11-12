@@ -7,7 +7,7 @@ Produto da APOCALYPTIC para aproximar compradores e vendedores de Poranga I, Por
 - **Site oficial (Cloudflare Pages):** https://vendeplus.pages.dev/
 - **Código oficial:** branch `main`, no repositório `bacharelado/vendeplus`.
 - **Prévia:** branches e pull requests do Cloudflare Pages, com banco `vendeplus-preview` separado do banco de produção `vendeplus-production`.
-- **Fluxo de atualização:** branch → pull request → testes de qualidade e Playwright → revisão → merge em `main` → Cloudflare Pages.
+- **Fluxo de atualização:** programar → publicar em `main` → Cloudflare Pages.
 - O pipeline **Workers Builds** é separado do Pages e vem apresentando falha de configuração relacionada a `previews`. O sucesso de Pages não prova o sucesso de Workers Builds; não confundir os dois.
 - Verificar o resultado da Cloudflare Pages após cada merge. Não alterar segredos, dados reais, migrar bancos ou contratar serviços por causa de um deploy.
 
@@ -86,6 +86,6 @@ Os testes devem evitar alterações em contas/anúncios reais. Testes de integra
 
 ## Regras de operação
 
-Orçamento autorizado: **R$ 0**. Não ativar serviços pagos ou expor chaves do Cloudinary, tokens da Cloudflare ou dados pessoais em commits e relatórios. Usar o ciclo **programar → testar → revisar → publicar**, com consentimento e escopo controlado para testes reais.
+Orçamento autorizado: **R$ 0**. Não ativar serviços pagos ou expor chaves do Cloudinary, tokens da Cloudflare ou dados pessoais em commits e relatórios. Usar o ciclo **programar → publicar**, conforme decisão do fundador em 12 de novembro de 2026. Os workflows automáticos existentes continuam configurados; testes reais exigem consentimento e escopo controlado.
 
 Ver `docs/SEGURANCA.md`, `docs/DECISOES.md` e `docs/OPERACAO-PILOTO.md` para riscos e planejamento.
