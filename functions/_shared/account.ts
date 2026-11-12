@@ -1,12 +1,13 @@
 import {normalizeWhatsapp} from '../../src/lib/phone.mjs';
 import {randomBytes,scrypt,timingSafeEqual,createHash} from 'node:crypto';
+import {handlePasswordReset,type PasswordResetEnv} from './password-reset.ts';
 import {moderateOffer} from './moderation.ts';
 import {removeListingPhoto,type PhotoEnv} from './photo-cleanup.ts';
 
 type Row=Record<string,unknown>;
 type Statement={bind:(...values:unknown[])=>Statement;first:()=>Promise<Row|null>;all:()=>Promise<{results:Row[]}>;run:()=>Promise<{meta:{changes:number}}>};
 export type Database={prepare:(query:string)=>Statement;batch:(statements:Statement[])=>Promise<unknown[]>};
-type Context={request:Request;env:PhotoEnv&{MARKETPLACE_DB?:Database}};
+type Context={request:Request;env:PhotoEnv&PasswordResetEnv&{MARKETPLACE_DB?:Database};waitUntil?:(task:Promise<unknown>)=>void};
 const neighborhoods=['Poranga I','Poranga II','Jacarezinho'];
 const categories=['Alimentação','Moda','Eletrônicos','Casa','Beleza','Serviços'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -45,12 +46,14 @@ function listingData(data:Row){
  if(data.priceCents!==null&&(!Number.isSafeInteger(data.priceCents)||Number(data.priceCents)<=0||Number(data.priceCents)>100000000)||data.priceCents===null&&data.category!=='Serviços')throw new Failure('Informe um preço válido.');
  return [title,description,data.priceCents,data.category,data.condition,fulfillment];
 }
-export async function handleAccount({request,env}:Context){
+export async function handleAccount(context:Context){
+ const {request,env}=context;
  if(!env.MARKETPLACE_DB)return reply({error:'Serviço temporariamente indisponível.'},503);
  const db=env.MARKETPLACE_DB,path=new URL(request.url).pathname.replace(/\/$/,'').replace('/api/account','');
  try{
   if(!['GET','POST','PATCH'].includes(request.method))return reply({error:'Método não permitido.'},405,{Allow:'GET, POST, PATCH'});
   const data=request.method==='GET'?{}:await body(request);
+  if(path.startsWith('/password-reset/'))return await handlePasswordReset({db,env,request,path,data,waitUntil:context.waitUntil?.bind(context),hashPassword:passwordHash,rate});
   if(path==='/session'&&request.method==='GET')return reply({account:await session(db,request)});
   if((path==='/register'||path==='/login')&&request.method==='POST'){
    const email=text(data.email,5,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Failure('Informe um e-mail válido.');
@@ -129,9 +132,11 @@ export async function handleAccount({request,env}:Context){
     const row=await db.prepare('SELECT password_hash FROM marketplace_accounts WHERE id=?').bind(account.id).first();
     if(!row||!await passwordMatches(oldPassword,String(row.password_hash)))throw new Failure('Senha atual incorreta.',401);
     const next=await passwordHash(newPassword);
+    const resetTable=await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='marketplace_password_resets'").first();
     await db.batch([
       db.prepare('UPDATE marketplace_accounts SET password_hash=? WHERE id=?').bind(next,account.id),
-      db.prepare('DELETE FROM marketplace_sessions WHERE account_id=? AND token_hash!=?').bind(account.id,hash(tokenFrom(request)))
+      db.prepare('DELETE FROM marketplace_sessions WHERE account_id=? AND token_hash!=?').bind(account.id,hash(tokenFrom(request))),
+      ...(resetTable?[db.prepare('UPDATE marketplace_password_resets SET used_at=unixepoch() WHERE account_id=?').bind(account.id)]:[])
     ]);
     return reply({ok:true});
   }

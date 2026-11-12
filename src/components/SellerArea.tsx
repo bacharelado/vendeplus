@@ -125,7 +125,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
     <Field label="E-mail"><input name="email" type="email" required maxLength={254} autoComplete="email"/></Field>
     <label>Senha<input name="password" type="password" required minLength={8} maxLength={128} autoComplete={register?'new-password':'current-password'} aria-label="Senha" aria-describedby="password-help"/><span id="password-help" className="field-help">Use de 8 a 128 caracteres.</span></label>
     {register&&<><label>Bairro<select name="neighborhood" required><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label><label>WhatsApp<input name="whatsapp" type="tel" required maxLength={32} placeholder="(92) 99999-9999" autoComplete="tel"/></label><label className="consent"><input type="checkbox" name="acceptContact" required/>Autorizo a divulgação do nome e WhatsApp nos anúncios publicados.</label></>}
-    <p className="account-limit" role="note">A recuperação de senha ainda não está disponível. Salve sua senha em um gerenciador de senhas para evitar perder o acesso.</p>
+    {!register&&<a className="text-link" href="#entrar?recuperar">Esqueci minha senha</a>}
     <Button disabled={busy} type="submit">{busy?'Aguarde…':register?'Criar minha conta':'Entrar na minha conta'}</Button>
 
    </form>:<>

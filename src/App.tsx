@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {categories,type Listing} from './data/marketplace';
 import {SellerArea} from './components/SellerArea';
+import {PasswordRecovery} from './components/PasswordRecovery';
 import {ListingCard} from './components/ListingCard';
 import {SellerPublicProfile} from './components/SellerPublicProfile';
 import {ReportListing} from './components/ReportListing';
@@ -12,9 +13,11 @@ import {fetchCatalogPage,fetchListing,type CatalogState} from './lib/api';
 
 const categoryIcons:Record<string,string>={'Alimentação':'food','Moda':'shirt','Eletrônicos':'phone','Casa':'home','Beleza':'sparkles','Serviços':'tool'};
 
-type Route={name:string;id?:number;draftId?:string;sellerId?:string;editId?:number;section?:string};
+type Route={name:string;id?:number;draftId?:string;sellerId?:string;editId?:number;section?:string;recover?:boolean;resetToken?:string};
 function readRoute():Route{
  const hash=location.hash.slice(1)||'inicio';
+ if(hash==='entrar?recuperar')return {name:'entrar',recover:true};
+ if(hash.startsWith('entrar?redefinir='))return {name:'entrar',recover:true,resetToken:hash.slice('entrar?redefinir='.length)};
  const listing=/^anuncio-(\d+)$/.exec(hash);
  if(listing)return {name:'anuncio',id:Number(listing[1])};
  const seller=/^vendedor-([a-f0-9-]{36})$/.exec(hash);
@@ -81,7 +84,7 @@ export function App(){
     fetchCatalogPage(controller.signal).then(page=>{if(!disposed){setCatalog({kind:'ready',listings:page.listings});setNextCursor(page.nextCursor)}}).catch(()=>{if(!disposed)setCatalog({kind:'unavailable',listings:[]})}).finally(()=>clearTimeout(timer));
     return ()=>{disposed=true;controller.abort();clearTimeout(timer)};
   },[refresh,route.name]);
-  useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda em Poranga e Jacarezinho',entrar:'Entrar ou cadastrar',area:'Minha área',publicar:route.editId?'Editar anúncio':'Publicar anúncio',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor'};document.title=`${titles[route.name]||'Página não encontrada'} | VENDE+`},[route.name,route.editId]);
+  useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda em Poranga e Jacarezinho',entrar:route.recover?'Recuperar senha':'Entrar ou cadastrar',area:'Minha área',publicar:route.editId?'Editar anúncio':'Publicar anúncio',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor'};document.title=`${titles[route.name]||'Página não encontrada'} | VENDE+`},[route.name,route.editId,route.recover]);
   useEffect(()=>{if(route.section)requestAnimationFrame(()=>document.getElementById(route.section!)?.scrollIntoView({block:'start'}))},[route.name,route.section]);
   useEffect(()=>{if(route.name==='anuncio'&&detail.kind==='ready'&&detail.id===route.id&&detail.listing){document.title=`${detail.listing.title} | VENDE+`}},[route.name,route.id,detail]);
   useEffect(()=>{document.documentElement.dataset.theme=dark?'dark':'light';try{localStorage.setItem('vendeplus:theme',dark?'dark':'light')}catch{}},[dark]);
@@ -141,7 +144,8 @@ export function App(){
       </div>}
       {route.name==='anuncio'&&(active?<><a href="#catalogo" className="back"><Icon name="arrow"/>Voltar às ofertas</a><div className="detail"><div className="detail-media"><span aria-hidden="true">{categories.find(c=>c.name===active.category)?.emoji}</span>{active.image&&<img src={active.image} alt={active.title} referrerPolicy="no-referrer" onError={e=>{e.currentTarget.hidden=true}}/>}</div><div className="detail-copy"><span className="eyebrow">{active.category} · {active.condition}</span><h1>{active.title}</h1><strong className="big-price">{formatBRL(active.priceCents)}</strong><span className="detail-location"><Icon name="pin"/>{active.neighborhood||'Poranga e Jacarezinho'}, Itacoatiara</span><div className="seller-box"><span className="seller-avatar"><Icon name="user"/></span><div><small>Anunciado por</small><a className="text-link" href={active.sellerId?'#vendedor-'+active.sellerId:'#catalogo'}><strong>{active.seller}</strong></a></div></div>{active.contactWhatsapp?<ContactLink listing={active}/>:<p className="contact-unavailable">Contato do anunciante indisponível no momento.</p>}<button className="button outline full" onClick={()=>void share(active)}>Compartilhar anúncio</button><ReportListing listingId={active.id}/><h2>Sobre esta oferta</h2><p className="description">{active.description}</p><h2>Como será a entrega?</h2><p>{active.fulfillment}</p><div className="safety-note"><Icon name="shield"/><p>Confira o produto e combine as condições diretamente com quem anuncia. O VENDE+ não recebe nem intermedeia pagamentos.</p></div></div></div></>:detail.id!==route.id||detail.kind==='loading'?<div role="status" className="catalog-loading">Carregando anúncio…</div>:<Empty title={detail.kind==='unavailable'?'Não foi possível carregar esta oferta':'Esta oferta não está disponível'}><p>{detail.kind==='unavailable'?'Tente novamente em alguns instantes.':'Ela pode ter sido encerrada ou retirada do catálogo.'}</p><a className="button primary" href="#catalogo">Ver anúncios</a></Empty>)}
       {route.name==='vendedor'&&route.sellerId&&<SellerPublicProfile id={route.sellerId}/>}
-      {['entrar','area','publicar'].includes(route.name)&&<SellerArea key={route.name+':'+(route.draftId||route.editId||'')} view={route.name as 'entrar'|'area'|'publicar'} draftId={route.draftId} editId={route.editId}/>}
+      {route.recover&&<PasswordRecovery key={route.resetToken||'request'} token={route.resetToken}/>}
+      {!route.recover&&['entrar','area','publicar'].includes(route.name)&&<SellerArea key={route.name+':'+(route.draftId||route.editId||'')} view={route.name as 'entrar'|'area'|'publicar'} draftId={route.draftId} editId={route.editId}/>}
       {route.name==='admin'&&<SellerArea admin/>}
       {route.name==='indisponivel'&&<Empty title="Página não encontrada" icon="search"><p>Continue explorando as oportunidades do bairro.</p><a href="#inicio" className="button primary">Voltar ao início</a></Empty>}
     </main>
