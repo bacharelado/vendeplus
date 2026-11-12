@@ -64,13 +64,13 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  useEffect(()=>{
   if(loading||admin)return;
   if(!account&&view==='publicar'){
-   try{sessionStorage.setItem('vendeplus:after-login',location.hash)}catch{}
+   try{sessionStorage.setItem('vendeplus:after-login','#publicar'+(draftId?'?rascunho='+draftId:editId?'?anuncio='+editId:''))}catch{}
    location.hash='entrar';
   }else if(account&&view==='entrar'){
    let target='#area';try{const saved=sessionStorage.getItem('vendeplus:after-login');if(saved&&/^#publicar(?:\?(?:rascunho|anuncio)=[a-zA-Z0-9-]+)?$/.test(saved))target=saved;sessionStorage.removeItem('vendeplus:after-login')}catch{}
    location.hash=target;
   }
- },[loading,account,admin,view]);
+ },[loading,account,admin,view,draftId,editId]);
  useEffect(()=>{
   if(view!=='publicar'||!account||readyAccount!==account.id)return;
   if(draftId&&!draft){setError('Este rascunho não está salvo neste navegador.');setShowForm(false);return}
