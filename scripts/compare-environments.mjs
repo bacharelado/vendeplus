@@ -7,7 +7,12 @@ async function api(path,sql){
  const data=await r.json();if(!r.ok||!data.success)throw Error('Consulta falhou HTTP '+r.status);return data.result;
 }
 const project=await api('/pages/projects/'+projectName);
-const deployments=await api('/pages/projects/'+projectName+'/deployments?per_page=25');
+let deployments=await api('/pages/projects/'+projectName+'/deployments?per_page=25');
+for(let attempt=0;attempt<10;attempt++){
+ if(deployments.some(d=>d.environment==='preview'&&d.deployment_trigger?.metadata?.branch==='feat/ux-compra-venda-v2'&&d.deployment_trigger?.metadata?.commit_hash==='ec0ca021488b6f3ecd3ca191c1c74f8b32bdb2e2'&&d.latest_stage?.status==='success'))break;
+ await new Promise(resolve=>setTimeout(resolve,5000));
+ deployments=await api('/pages/projects/'+projectName+'/deployments?per_page=25');
+}
 const configs={};
 for(const name of ['production','preview']){
  const c=project.deployment_configs?.[name]||{};
@@ -19,7 +24,7 @@ for(const name of ['production','preview']){
 }
 console.log('RECON_CONFIG '+JSON.stringify({productionBranch:project.production_branch,sourceConfig:project.source?.config,buildConfig:project.build_config,isolatedDatabases:project.deployment_configs?.preview?.d1_databases?.MARKETPLACE_DB?.id!==project.deployment_configs?.production?.d1_databases?.MARKETPLACE_DB?.id,configs}));
 console.log('RECON_DEPLOYMENTS '+JSON.stringify(deployments.map(d=>({id:d.id,environment:d.environment,stage:d.latest_stage,branch:d.deployment_trigger?.metadata?.branch,commit:d.deployment_trigger?.metadata?.commit_hash,url:d.url,aliases:d.aliases,canonical:d.id===project.canonical_deployment?.id}))));
-const expectedPreviewBranch=process.env.COMPARE_PREVIEW_BRANCH||'feat/vendeplus-2.0';
+const expectedPreviewBranch=process.env.COMPARE_PREVIEW_BRANCH||'feat/ux-compra-venda-v2';
 const production=deployments.find(d=>d.id===project.canonical_deployment?.id);
 const preview=deployments.find(d=>d.environment==='preview'&&d.deployment_trigger?.metadata?.branch===expectedPreviewBranch&&d.latest_stage?.status==='success');
 async function probe(deploy){
