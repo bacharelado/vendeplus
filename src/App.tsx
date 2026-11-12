@@ -63,6 +63,7 @@ export function App(){
   const [condition,setCondition]=useState('Todas');
   const [neighborhood,setNeighborhood]=useState('Todos');
   const [order,setOrder]=useState<'recentes'|'menor'|'maior'>('recentes');
+  const [dark,setDark]=useState(()=>{try{return localStorage.getItem('vendeplus:theme')==='dark'}catch{return false}});
   const [notice,setNotice]=useState('');
   const [dialog,setDialog]=useState<{title:string;content:ReactNode}|null>(null);
   const mainRef=useRef<HTMLElement>(null);
@@ -83,7 +84,8 @@ export function App(){
   useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda em Poranga e Jacarezinho',entrar:'Entrar ou cadastrar',area:'Minha área',publicar:route.editId?'Editar anúncio':'Publicar anúncio',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor'};document.title=`${titles[route.name]||'Página não encontrada'} | VENDE+`},[route.name,route.editId]);
   useEffect(()=>{if(route.section)requestAnimationFrame(()=>document.getElementById(route.section!)?.scrollIntoView({block:'start'}))},[route.name,route.section]);
   useEffect(()=>{if(route.name==='anuncio'&&detail.kind==='ready'&&detail.id===route.id&&detail.listing){document.title=`${detail.listing.title} | VENDE+`}},[route.name,route.id,detail]);
-  useEffect(()=>{document.documentElement.dataset.theme='light'},[]);
+  useEffect(()=>{document.documentElement.dataset.theme=dark?'dark':'light';try{localStorage.setItem('vendeplus:theme',dark?'dark':'light')}catch{}},[dark]);
+  const changeTheme=()=>setDark(value=>!value);
   const reset=()=>{setQuery('');setCategory('Todas');setCondition('Todas');setNeighborhood('Todos');setOrder('recentes')};
   const browse=(nextCategory='Todas')=>{reset();setCategory(nextCategory);if(route.name!=='inicio')location.hash='catalogo';else document.getElementById('ofertas')?.scrollIntoView({behavior:'smooth',block:'start'})};
   const filtered=filterListings(catalog.listings,{query,category,condition,neighborhood,sortOrder:order});
@@ -108,10 +110,10 @@ export function App(){
   };
   useEffect(()=>{const reload=()=>{if(document.visibilityState==='visible'&&['inicio','anuncio'].includes(route.name))setRefresh(value=>value+1)};document.addEventListener('visibilitychange',reload);return ()=>document.removeEventListener('visibilitychange',reload)},[route.name]);
   const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando anúncios…</div>:catalog.kind==='unavailable'?<Empty title="Não foi possível carregar os anúncios"><p>Tente novamente em alguns instantes.</p><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:<Empty title={catalog.listings.length?'Nenhum anúncio encontrado':'Ainda não há anúncios no bairro'} icon="search"><p>{catalog.listings.length?'Tente outra palavra ou escolha outra categoria.':'Seja o primeiro a anunciar em Poranga e Jacarezinho.'}</p>{catalog.listings.length?<button className="button outline" onClick={reset}>Limpar filtros</button>:<div className="empty-actions"><a className="button primary" href="#publicar">Publicar meu anúncio</a></div>}</Empty>;
-  return <div className="app">
+  return <div className={dark?'app dark':'app'}>
     <a href="#conteudo" className="skip-link" onClick={e=>{e.preventDefault();mainRef.current?.focus()}}>Pular para o conteúdo</a>
     <div className="location-strip"><div className="container"><span><Icon name="pin"/>Feito para Poranga e Jacarezinho, Itacoatiara</span></div></div>
-    <header className="topbar buyer-header"><div className="container header-row"><a className="brand" href="#inicio" aria-label="VENDE+ início">VENDE<span>+</span></a><nav aria-label="Menu principal"><a href="#inicio" onClick={e=>{e.preventDefault();browse()}} aria-current={route.name==='inicio'?'page':undefined}>Ver anúncios</a><a href="#area" aria-current={route.name==='area'?'page':undefined}>Minha área</a></nav><a href="#publicar" className="button primary seller-cta"><Icon name="plus"/>Anunciar</a></div></header>
+    <header className="topbar buyer-header"><div className="container header-row"><a className="brand" href="#inicio" aria-label="VENDE+ início">VENDE<span>+</span></a><nav aria-label="Menu principal"><a href="#inicio" onClick={e=>{e.preventDefault();browse()}} aria-current={route.name==='inicio'?'page':undefined}>Ver anúncios</a><a href="#area" aria-current={route.name==='area'?'page':undefined}>Minha área</a></nav><a href="#publicar" className="button primary seller-cta"><Icon name="plus"/>Anunciar</a><button type="button" className="icon-button theme" onClick={changeTheme} aria-label="Alternar tema" aria-pressed={dark} title={dark?'Ativar tema claro':'Ativar tema escuro'}><Icon name={dark?'sun':'moon'}/></button></div></header>
     <main ref={mainRef} id="conteudo" tabIndex={-1} className="container main">
       {notice&&<div className="notice" role="status">{notice}<button className="icon-button" onClick={()=>setNotice('')} aria-label="Fechar aviso"><Icon name="close"/></button></div>}
       {route.name==='inicio'&&<div className="buyer-home">

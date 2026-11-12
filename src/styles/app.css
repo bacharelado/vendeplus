@@ -297,3 +297,9 @@ summary{cursor:pointer;font-weight:600;font-size:.84rem}
 .publish-actions>.full{width:auto;flex:2}
 @media(max-width:760px){.buying-summary{padding:20px}.buying-summary ol{grid-template-columns:1fr;gap:18px}.mobile-bottom{grid-template-columns:repeat(3,minmax(0,1fr))}#ofertas,#como-comprar{scroll-margin-top:82px}}
 @media(max-width:420px){.publish-actions{flex-direction:column}.publish-actions>.button{width:100%}}
+
+.app:not(.dark) select{background-color:#eef2f7;border:1px solid #8b9bb0;color:#172033;font-weight:500}
+.app:not(.dark) select:hover{background-color:#e7edf5;border-color:#526881}
+.app:not(.dark) select:focus-visible{border-color:#2456c7;outline:3px solid #b7cdfb;outline-offset:2px}
+.app:not(.dark) select option{background:#fff;color:#172033}
+.app:not(.dark) .filter-select>span{color:#34455e;font-weight:700}
