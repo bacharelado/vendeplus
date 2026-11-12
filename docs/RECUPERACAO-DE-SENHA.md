@@ -27,3 +27,18 @@ A migração 0004 cria a tabela sem alterar contas. O workflow de preparação v
 
 ## Estado na entrega
 Canal de e-mail depende de configuração da conta do proprietário. Não foram criadas contas de provedor, comprados domínios ou ativados serviços pagos. Confirmar entrega real de ponta a ponta após configurar o remetente; testes com entrega simulada não comprovam a entrega real.
+
+## Migração 0004: execução controlada (após aprovação da alteração)
+
+A automação agora é **somente manual** e exige execução na branch `main`. Não dispara em commits ou pull requests. Ela só aplica `CREATE TABLE/INDEX IF NOT EXISTS` da migração 0004, no ambiente escolhido, sem apagar nem substituir contas ou anúncios.
+
+1. No GitHub, abra **Actions → VENDE+ — Preparar recuperação de senha → Run workflow**, com a branch `main`.
+2. Escolha `preview` primeiro. Deixe `confirm_production` vazio. O job testa o fluxo, confirma os bindings distintos de D1, aplica a migração somente no banco `vendeplus-preview` e compara a contagem de contas antes/depois.
+3. Confirme o resultado do workflow e faça um teste com e-mail/conta exclusivamente de teste na prévia, depois de configurar o provedor.
+4. Somente após validar e autorizar a preparação de produção, execute outra vez escolhendo `production` e preenchendo `confirm_production` exatamente com `APLICAR_MIGRACAO_0004`. A alteração alcança apenas `vendeplus-production`.
+
+A automação exige o segredo `CLOUDFLARE_API_TOKEN` existente no GitHub Actions com acesso restrito a ler o projeto Pages e executar SQL em D1. **Ela não cadastra nem revela credenciais de e-mail, não habilita recuperação e não dispara mensagens.** Caso faltem as credenciais, ela falhará sem ativar o recurso. Não envie tokens nem chaves pelo chat ou para o GitHub.
+
+Para ativar a funcionalidade após migrar os bancos, configure `RESEND_API_KEY` como segredo, `PASSWORD_RESET_FROM` com um remetente de domínio verificado e `PASSWORD_RESET_ENABLED=true` nas variáveis do Pages, primeiro em Preview. Reimplante a prévia se necessário, confirme `GET /api/account/password-reset/status` com `available:true` e teste entrega, expiração, uso único, nova senha e encerramento das sessões. Só então repita a configuração em Production, validando em conta de teste sem afetar usuários reais.
+
+Se não houver domínio verificado, **não habilite a recuperação em produção**; os remetentes de teste do Resend não atendem qualquer e-mail de vendedor.
