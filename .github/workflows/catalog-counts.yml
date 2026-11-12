@@ -1,0 +1,25 @@
+name: VENDE+ — Contagens do catálogo
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/catalog-counts.mjs
+      - .github/workflows/catalog-counts.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  catalogo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Consultar apenas contagens, sem dados pessoais
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/catalog-counts.mjs
