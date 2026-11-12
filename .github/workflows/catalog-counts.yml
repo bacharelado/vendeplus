@@ -1,7 +1,7 @@
 name: VENDE+ — Contagens do catálogo
 on:
   push:
-    branches: [main]
+    branches: [ops/contagem-contas-20261112]
     paths:
       - scripts/catalog-counts.mjs
       - .github/workflows/catalog-counts.yml

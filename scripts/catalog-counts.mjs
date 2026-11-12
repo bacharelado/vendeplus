@@ -14,7 +14,8 @@ for(const name of ['production','preview']){
  const id=project.deployment_configs?.[name]?.d1_databases?.MARKETPLACE_DB?.id;
  if(!id){summary[name]={databaseBound:false};continue}
  const result=await call('/d1/database/'+id+'/query',`SELECT 'total' AS state,COUNT(*) AS total FROM marketplace_listings UNION ALL SELECT l.status,COUNT(*) FROM marketplace_listings l GROUP BY l.status UNION ALL SELECT 'public_visible',COUNT(*) FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status='published' AND s.status!='suspended'`);
- summary[name]={databaseBound:true,counts:result[0]?.results};
+ const accounts=await call('/d1/database/'+id+'/query',"SELECT COUNT(*) AS total FROM marketplace_accounts");
+ summary[name]={databaseBound:true,accounts:Number(accounts[0]?.results?.[0]?.total),counts:result[0]?.results};
 }
 const text=JSON.stringify(summary,null,2);
 console.log(text);
