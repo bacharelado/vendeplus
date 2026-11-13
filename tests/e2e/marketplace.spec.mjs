@@ -59,6 +59,17 @@ test('catálogo usa a API, busca, categoria e ordenação',async({page})=>{
   await expect(page.locator('.listing-card')).toContainText('Sob orçamento');
 });
 
+test('anúncios usam cartão escuro e texto legível mesmo em tela grande',async({page})=>{
+  await catalog(page,items);await page.goto('/');
+  const card=page.locator('.listing-card').first();
+  await expect(card).toBeVisible();
+  await expect(card).toHaveCSS('background-color','rgb(21, 23, 28)');
+  await expect(card.locator('.listing-main')).toHaveCSS('color','rgb(245, 245, 247)');
+  await expect(card.locator('h3')).toHaveCSS('color','rgb(245, 245, 247)');
+  await expect(card.locator('.price')).toHaveCSS('color','rgb(255, 53, 69)');
+  await expect(card.locator('.listing-image')).toHaveCSS('background-color','rgb(16, 18, 22)');
+});
+
 test('busca inicial e categorias abrem o catálogo filtrado',async({page})=>{
   await catalog(page,items);await page.goto('/');
   await page.getByRole('textbox',{name:'Pesquisar no bairro'}).fill('Mesa');
