@@ -162,6 +162,20 @@ export function App(){
           {nextCursor&&catalog.kind==='ready'&&<button className="button outline full" disabled={loadingMore} onClick={()=>void more()}>{loadingMore?'Carregando…':'Ver mais anúncios'}</button>}
         </section>
 
+        <section className="apocalyptic-feature" aria-labelledby="apocalyptic-feature-title" style={{margin:'48px 0',padding:'clamp(20px,4vw,36px)',border:'1px solid #5d2332',borderRadius:18,background:'linear-gradient(135deg,#171016,#0b0d12)',color:'#fff'}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,290px),1fr))',alignItems:'center',gap:24}}>
+            <div>
+              <span className="market-section-kicker">APOCALYPTIC · TECNOLOGIA</span>
+              <h2 id="apocalyptic-feature-title" style={{fontSize:'clamp(24px,3.5vw,38px)',lineHeight:1.15,margin:'12px 0'}}>Por trás do VENDE+, existe uma visão maior.</h2>
+              <p style={{color:'#c6c7cf',lineHeight:1.7}}>Conheça a APOCALYPTIC, iniciativa de tecnologia e cibersegurança por trás do desenvolvimento desta plataforma.</p>
+              <a href="https://drive.google.com/file/d/1lKwwG79DWtKwp-v8o_C__FPMj-849pxN/view" target="_blank" rel="noopener noreferrer" style={{color:'#fca5a5',fontWeight:700}}>Abrir vídeo em outra aba</a>
+            </div>
+            <div style={{maxWidth:380,width:'100%',margin:'0 auto'}}>
+              <iframe title="Vídeo institucional APOCALYPTIC" src="https://drive.google.com/file/d/1lKwwG79DWtKwp-v8o_C__FPMj-849pxN/preview" loading="lazy" allow="autoplay; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" style={{width:'100%',aspectRatio:'9 / 16',border:'1px solid #613343',borderRadius:14,background:'#08090c',display:'block'}} />
+            </div>
+          </div>
+        </section>
+
         <section className="market-guide" aria-labelledby="market-guide-title">
           <div className="market-guide-heading"><span className="market-section-kicker">SIMPLES ASSIM</span><h2 id="market-guide-title">Encontre, converse e combine.</h2><p>O VENDE+ conecta pessoas do bairro. A negociação é feita diretamente entre comprador e vendedor.</p></div>
           <div className="market-guide-steps">
