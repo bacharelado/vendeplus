@@ -11,8 +11,6 @@ import {filterListings} from './lib/catalog.mjs';
 import {formatBRL} from './lib/pricing.mjs';
 import {fetchCatalogPage,fetchListing,type CatalogState} from './lib/api';
 
-const categoryIcons:Record<string,string>={'Alimentação':'food','Moda':'shirt','Eletrônicos':'phone','Casa':'home','Beleza':'sparkles','Serviços':'tool'};
-
 type Route={name:string;id?:number;draftId?:string;sellerId?:string;editId?:number;section?:string;recover?:boolean;resetToken?:string};
 function readRoute():Route{
  const hash=location.hash.slice(1)||'inicio';
@@ -62,10 +60,6 @@ export function App(){
   const catalogVersion=useRef(0);
   const [detail,setDetail]=useState<{id?:number;kind:'loading'|'ready'|'unavailable';listing?:Listing}>({kind:'loading'});
   const [query,setQuery]=useState('');
-  const [category,setCategory]=useState('Todas');
-  const [condition,setCondition]=useState('Todas');
-  const [neighborhood,setNeighborhood]=useState('Todos');
-  const [order,setOrder]=useState<'recentes'|'menor'|'maior'>('recentes');
   const [notice,setNotice]=useState('');
   const [dialog,setDialog]=useState<{title:string;content:ReactNode}|null>(null);
   const mainRef=useRef<HTMLElement>(null);
@@ -86,9 +80,9 @@ export function App(){
   useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda em Poranga e Jacarezinho',entrar:route.recover?'Recuperar senha':'Entrar ou cadastrar',area:'Minha área',publicar:route.editId?'Editar anúncio':'Publicar anúncio',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor'};document.title=`${titles[route.name]||'Página não encontrada'} | VENDE+`},[route.name,route.editId,route.recover]);
   useEffect(()=>{if(route.section)requestAnimationFrame(()=>document.getElementById(route.section!)?.scrollIntoView({block:'start'}))},[route.name,route.section]);
   useEffect(()=>{if(route.name==='anuncio'&&detail.kind==='ready'&&detail.id===route.id&&detail.listing){document.title=`${detail.listing.title} | VENDE+`}},[route.name,route.id,detail]);
-  const reset=()=>{setQuery('');setCategory('Todas');setCondition('Todas');setNeighborhood('Todos');setOrder('recentes')};
-  const browse=(nextCategory='Todas')=>{reset();setCategory(nextCategory);if(route.name!=='inicio')location.hash='catalogo';else document.getElementById('ofertas')?.scrollIntoView({behavior:'smooth',block:'start'})};
-  const filtered=filterListings(catalog.listings,{query,category,condition,neighborhood,sortOrder:order});
+  const reset=()=>setQuery('');
+  const browse=()=>{reset();if(route.name!=='inicio')location.hash='catalogo';else document.getElementById('ofertas')?.scrollIntoView({behavior:'smooth',block:'start'})};
+  const filtered=filterListings(catalog.listings,{query});
   const active=detail.id===route.id&&detail.kind==='ready'?detail.listing:undefined;
   useEffect(()=>{
     if(route.name!=='anuncio'||!route.id)return;
@@ -109,8 +103,7 @@ export function App(){
     setDialog({title:copied?'Link copiado':'Compartilhar anúncio',content:<><p>{copied?'Envie o endereço para quem pode se interessar.':'Selecione o endereço abaixo para copiar e enviar.'}</p><label className="share-label">Link do anúncio<input readOnly value={link} onFocus={e=>e.currentTarget.select()}/></label></>});
   };
   useEffect(()=>{const reload=()=>{if(document.visibilityState==='visible'&&['inicio','anuncio'].includes(route.name))setRefresh(value=>value+1)};document.addEventListener('visibilitychange',reload);return ()=>document.removeEventListener('visibilitychange',reload)},[route.name]);
-  const hasFilters=Boolean(query.trim()||category!=='Todas'||condition!=='Todas'||neighborhood!=='Todos');
-  const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando anúncios…</div>:catalog.kind==='unavailable'?<Empty title="Não foi possível carregar os anúncios"><p>Tente novamente em alguns instantes.</p><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:<Empty title={query.trim()?`Nenhum resultado para “${query.trim()}”`:hasFilters?'Nenhum anúncio com esses filtros':catalog.listings.length?'Nenhum anúncio encontrado':'Ainda não há anúncios no bairro'} icon="search"><p>{hasFilters?(nextCursor?'Não há correspondências entre os anúncios carregados. Você pode limpar os filtros ou carregar mais abaixo.':'Tente outra palavra ou limpe os filtros para ver todas as ofertas.'):'Seja o primeiro a anunciar em Poranga e Jacarezinho.'}</p>{hasFilters?<button className="button outline" onClick={reset}>{query.trim()?'Limpar busca':'Limpar filtros'}</button>:<div className="empty-actions"><a className="button primary" href="#publicar">Publicar meu anúncio</a></div>}</Empty>;
+  const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando anúncios…</div>:catalog.kind==='unavailable'?<Empty title="Não foi possível carregar os anúncios"><p>Tente novamente em alguns instantes.</p><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:query.trim()?<Empty title={`Nenhum resultado para “${query.trim()}”`} icon="search"><p>Tente outra palavra ou volte aos anúncios do bairro.</p><button className="button outline" onClick={reset}>Ver todos os anúncios</button></Empty>:<Empty title="Ainda não há anúncios no bairro" icon="search"><p>Seja o primeiro a anunciar em Poranga e Jacarezinho.</p><a className="button primary" href="#publicar">Publicar meu anúncio</a></Empty>;
   return <div className="app dark">
     <a href="#conteudo" className="skip-link" onClick={e=>{e.preventDefault();mainRef.current?.focus()}}>Pular para o conteúdo</a>
     <div className="location-strip"><div className="container"><span><Icon name="pin"/>Feito para Poranga e Jacarezinho</span></div></div>
@@ -118,25 +111,19 @@ export function App(){
     <main ref={mainRef} id="conteudo" tabIndex={-1} className="container main">
       {notice&&<div className="notice" role="status">{notice}<button className="icon-button" onClick={()=>setNotice('')} aria-label="Fechar aviso"><Icon name="close"/></button></div>}
       {route.name==='inicio'&&<div className="buyer-home">
-        <section className="hero buyer-hero">
-          <div className="hero-copy">
-            <span className="eyebrow"><Icon name="pin"/> O comércio pertinho de você</span>
-            <h1>Encontre no bairro.</h1>
-            <p>Poranga I, Poranga II e Jacarezinho. Negocie direto pelo WhatsApp.</p>
-            <form className="search" onSubmit={e=>{e.preventDefault();document.getElementById('ofertas')?.scrollIntoView({behavior:'smooth',block:'start'})}}>
-              <Icon name="search"/>
-              <input name="q" aria-label="Pesquisar no bairro" placeholder="O que você procura?" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/>
-              <button className="button primary">Buscar<Icon name="arrow"/></button>
-            </form>
-            <div className="buyer-benefits"><span><Icon name="check"/> Comprar sem cadastro</span><span><Icon name="message-circle"/> Contato direto no WhatsApp</span></div>
+        <section id="ofertas" className="buyer-offers simple-market" aria-label="Anúncios do bairro">
+          <div className="simple-market-heading">
+            <h1>Anúncios do bairro</h1>
+            {catalog.kind==='ready'&&<span className="simple-market-count" role="status" aria-live="polite">{filtered.length} {filtered.length===1?'anúncio':'anúncios'}</span>}
           </div>
-
+          <div className="simple-market-search">
+            <Icon name="search"/>
+            <input name="q" type="search" aria-label="Buscar anúncios" placeholder="Buscar produto ou serviço…" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/>
+            {query&&<button type="button" aria-label="Limpar busca" title="Limpar busca" onClick={reset}><Icon name="close"/></button>}
+          </div>
+          {catalogContent()}
+          {nextCursor&&catalog.kind==='ready'&&<button className="button outline full" disabled={loadingMore} onClick={()=>void more()}>{loadingMore?'Carregando…':'Ver mais anúncios'}</button>}
         </section>
-
-        <section className="category-section" aria-label="Categorias de produtos e serviços"><div className="section-heading"><h2>Escolha uma categoria</h2></div><div className="category-grid">{categories.map(item=><button className="category" aria-pressed={category===item.name} key={item.name} onClick={()=>browse(item.name)}><span aria-hidden="true"><Icon name={categoryIcons[item.name]}/></span><strong>{item.name}</strong></button>)}</div></section>
-        <section id="ofertas" className="buyer-offers" aria-label="Anúncios e filtros"><div className="section-heading"><h2>Anúncios do bairro</h2>{catalog.kind==='ready'&&<span className="count search-summary" role="status" aria-live="polite">{query.trim()?`Busca por “${query.trim()}” · `:''}{filtered.length} {filtered.length===1?'resultado':'resultados'}</span>}</div><div className="filters"><label className="filter-select"><span>Bairro</span><select aria-label="Bairro" value={neighborhood} onChange={e=>setNeighborhood(e.target.value)}><option>Todos</option><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label><label className="filter-select"><span>Condição</span><select aria-label="Condição" value={condition} onChange={e=>setCondition(e.target.value)}><option>Todas</option><option>Novo</option><option>Usado</option><option>Não aplicável</option></select></label><label className="filter-select"><span>Ordenar por</span><select aria-label="Ordenação" value={order} onChange={e=>setOrder(e.target.value as typeof order)}><option value="recentes">Mais recentes</option><option value="menor">Menor preço</option><option value="maior">Maior preço</option></select></label></div>{hasFilters&&<div className="filter-feedback"><div className="active-filters" aria-label="Critérios da busca">{query.trim()&&<span>Busca: {query.trim()}</span>}{category!=='Todas'&&<span>{category}</span>}{neighborhood!=='Todos'&&<span>{neighborhood}</span>}{condition!=='Todas'&&<span>{condition}</span>}</div><button onClick={reset}>{query.trim()?'Limpar busca e filtros':'Limpar filtros'}</button></div>}{catalogContent()}{nextCursor&&catalog.kind==='ready'&&<p className="field-help">Os filtros mostram os anúncios carregados. Toque abaixo para ver mais.</p>}{nextCursor&&catalog.kind==='ready'&&<button className="button outline full" disabled={loadingMore} onClick={()=>void more()}>{loadingMore?'Carregando…':'Ver mais anúncios'}</button>}</section>
-
-
         <p id="como-comprar" className="buyer-safety"><Icon name="shield"/>Confira o produto e combine a entrega antes de pagar. A negociação é feita diretamente com quem anuncia.</p>
       </div>}
       {route.name==='anuncio'&&(active?<><a href="#catalogo" className="back"><Icon name="arrow"/>Voltar às ofertas</a><div className="detail"><div className="detail-media"><span aria-hidden="true">{categories.find(c=>c.name===active.category)?.emoji}</span>{active.image&&<img src={active.image} alt={active.title} referrerPolicy="no-referrer" onError={e=>{e.currentTarget.hidden=true}}/>}</div><div className="detail-copy"><span className="eyebrow">{active.category} · {active.condition}</span><h1>{active.title}</h1><strong className="big-price">{formatBRL(active.priceCents)}</strong><span className="detail-location"><Icon name="pin"/>{active.neighborhood||'Poranga e Jacarezinho'}</span><div className="seller-box"><span className="seller-avatar"><Icon name="user"/></span><div><small>Anunciado por</small><a className="text-link" href={active.sellerId?'#vendedor-'+active.sellerId:'#catalogo'}><strong>{active.seller}</strong></a></div></div>{active.contactWhatsapp?<ContactLink listing={active}/>:<p className="contact-unavailable">Contato do anunciante indisponível no momento.</p>}<button className="button outline full" onClick={()=>void share(active)}>Compartilhar anúncio</button><ReportListing listingId={active.id}/><h2>Sobre esta oferta</h2><p className="description">{active.description}</p><h2>Como será a entrega?</h2><p>{active.fulfillment}</p><div className="safety-note"><Icon name="shield"/><p>Confira o produto e combine as condições diretamente com quem anuncia. O VENDE+ não recebe nem intermedeia pagamentos.</p></div></div></div></>:detail.id!==route.id||detail.kind==='loading'?<div role="status" className="catalog-loading">Carregando anúncio…</div>:<Empty title={detail.kind==='unavailable'?'Não foi possível carregar esta oferta':'Esta oferta não está disponível'}><p>{detail.kind==='unavailable'?'Tente novamente em alguns instantes.':'Ela pode ter sido encerrada ou retirada do catálogo.'}</p><a className="button primary" href="#catalogo">Ver anúncios</a></Empty>)}
