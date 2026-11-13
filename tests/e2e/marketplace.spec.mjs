@@ -19,7 +19,7 @@ test('vitrine pública não contém avisos de demonstração nem anúncios inven
   await expect(page.locator('.app')).toHaveClass(/dark/);
   await expect(page.getByRole('button',{name:'Alternar tema'})).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('Itacoatiara');
-  await expect(page.getByRole('heading',{name:/Encontre o que você precisa/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Anúncios do bairro'})).toBeVisible();
   await expect(page.locator('.listing-card')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(/demonstração|simulação|fictício|Vendedor de demonstração/i);
   await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
