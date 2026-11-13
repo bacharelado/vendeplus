@@ -4,12 +4,35 @@ const items=[
   {id:102,title:'Serviço de teste',description:'Serviço usado na verificação automatizada da interface.',priceCents:null,category:'Serviços',condition:'Não aplicável',seller:'Anunciante de teste',fulfillment:'Atendimento a combinar',status:'PUBLICADO',createdAt:2}
 ];
 async function catalog(page,listings=[]){await page.route('**/api/account/session',route=>route.fulfill({contentType:'application/json',body:'{"account":null}'}));await page.route('**/api/listings**',route=>{const id=new URL(route.request().url()).searchParams.get('id');return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({listings:id?listings.filter(item=>item.id===Number(id)):listings})})})}
-async function fillDraft(page,title='Produto para teste'){
-  await page.goto('/#publicar');
-  await page.getByRole('textbox',{name:'O que você está vendendo?'}).fill(title);
-  await page.getByRole('textbox',{name:'Preço em reais'}).fill('50,00');
-  await page.getByRole('textbox',{name:'Conte sobre o produto',exact:true}).fill('Descrição completa usada apenas no teste automatizado.');
-  await page.getByRole('textbox',{name:'Como será a entrega?'}).fill('Retirada a combinar');
+const account={id:'00000000-0000-4000-8000-000000000001',name:'Conta de teste',email:'teste@example.invalid',neighborhood:'Poranga II',role:'seller',status:'pending',whatsapp:'5592000000000'};
+async function seller(page,{signedIn=true}={}){
+ let authenticated=signedIn,offers=[],sent;
+ let profile={name:account.name,bio:''};
+ const json=(route,body,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
+ await page.route('**/api/account/session',route=>json(route,{account:authenticated?account:null}));
+ await page.route('**/api/account/login',route=>{authenticated=true;return json(route,{account})});
+ await page.route('**/api/account/logout',route=>{authenticated=false;return json(route,{ok:true})});
+ await page.route('**/api/account/profile',route=>{if(route.request().method()==='PATCH')profile={...profile,...route.request().postDataJSON()};return json(route,{profile})});
+ await page.route('**/api/account/listings',route=>{
+  if(route.request().method()==='POST'){
+   sent=route.request().postDataJSON();offers=[{...sent,id:123,status:'published'}];return json(route,{id:123,status:'published'},201);
+  }
+  return json(route,{listings:offers});
+ });
+ await page.route('**/api/media-upload**',route=>json(route,{available:true}));
+ return {payload:()=>sent};
+}
+async function fillListing(page,title='Produto para teste'){
+ await page.goto('/#publicar');
+ await page.getByLabel('Nome do produto ou serviço',{exact:true}).fill(title);
+ await page.getByLabel('Condição',{exact:true}).selectOption('Usado');
+ await page.locator('input[name=price]').fill('50,00');
+ await page.locator('textarea[name=description]').fill('Descrição completa usada apenas no teste automatizado.');
+ await page.locator('input[name=fulfillment]').fill('Retirada a combinar');
+}
+const oldDraft={id:'draft-test',title:'Produto para teste',description:'Descrição do rascunho antigo.',priceCents:5000,category:'Casa',condition:'Usado',fulfillment:'Retirada a combinar',updatedAt:1};
+async function seedDraft(page){
+ await page.addInitScript(draft=>{if(localStorage.getItem('vendeplus:drafts:v1')===null)localStorage.setItem('vendeplus:drafts:v1',JSON.stringify([draft]))},oldDraft);
 }
 
 test('vitrine pública não contém avisos de demonstração nem anúncios inventados',async({page},info)=>{
@@ -102,63 +125,65 @@ test('busca por categoria e limpar pesquisa',async({page})=>{
   await expect(page.locator('.listing-card')).toHaveCount(1);
   await expect(page.locator('.listing-card')).toContainText('Serviço de teste');
   await search.fill('sem resultado');
-  await expect(page.getByRole('heading',{name:/Nenhum resultado/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Nenhum anúncio encontrado'})).toBeVisible();
   await page.getByRole('button',{name:'Ver todos os anúncios'}).click();
   await expect(page.locator('.listing-card')).toHaveCount(2);
 });
 
-test('rascunho persiste após recarregar e não vira oferta pública',async({page})=>{
-  await catalog(page);await fillDraft(page);
-  await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
-  await expect(page).toHaveURL(/#painel$/);
-  await expect(page.locator('.draft-card')).toContainText('Produto para teste');
-  await page.reload();await expect(page.locator('.draft-card')).toContainText('Produto para teste');
-  await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);
-  await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
+test('rascunho anterior persiste após recarregar e não vira oferta pública',async({page})=>{
+ await catalog(page);await seller(page);await seedDraft(page);await page.goto('/#area');
+ await expect(page.locator('.draft-card')).toContainText(oldDraft.title);
+ await page.reload();await expect(page.locator('.draft-card')).toContainText(oldDraft.title);
+ await expect(page.getByRole('button',{name:'Salvar rascunho',exact:true})).toHaveCount(0);
+ await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
 });
 
-test('rascunho pode ser editado e atualização é salva',async({page})=>{
-  await catalog(page);await fillDraft(page);
-  await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
-  await page.getByRole('link',{name:'Editar',exact:true}).click();
-  await page.getByRole('textbox',{name:'O que você está vendendo?'}).fill('Produto atualizado no teste');
-  await page.getByRole('button',{name:'Salvar alterações',exact:true}).click();
-  await page.reload();await expect(page.locator('.draft-card')).toContainText('Produto atualizado no teste');
-  await expect(page.locator('.draft-card')).toHaveCount(1);
+test('rascunho anterior abre o formulário único com seus dados',async({page})=>{
+ await catalog(page);await seller(page);await seedDraft(page);await page.goto('/#area');
+ await page.getByRole('link',{name:'Continuar anúncio'}).click();
+ await expect(page).toHaveURL(/#publicar\?rascunho=draft-test$/);
+ await expect(page.getByLabel('Nome do produto ou serviço',{exact:true})).toHaveValue(oldDraft.title);
+ await expect(page.locator('textarea[name=description]')).toHaveValue(oldDraft.description);
+ await expect(page.locator('input[name=price]')).toHaveValue('50,00');
+ await expect(page.getByLabel('Condição',{exact:true})).toHaveValue('Usado');
+ await expect(page.getByRole('button',{name:'Publicar anúncio',exact:true})).toBeVisible();
 });
 
-test('exclusão pede confirmação, modal controla foco e não reaparece após recarregar',async({page},info)=>{
-  await catalog(page);await fillDraft(page);await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
-  const trigger=page.getByRole('button',{name:'Excluir rascunho: Produto para teste'});
-  await trigger.click();const dialog=page.getByRole('dialog');
-  await expect(dialog.getByRole('button',{name:'Fechar',exact:true})).toBeFocused();
-  await page.keyboard.press('Shift+Tab');await expect(dialog.getByRole('button',{name:'Excluir rascunho',exact:true})).toBeFocused();
-  await page.keyboard.press('Tab');await expect(dialog.getByRole('button',{name:'Fechar',exact:true})).toBeFocused();
-  await page.screenshot({path:info.outputPath('confirmacao.png'),fullPage:true});
-  await page.keyboard.press('Escape');await expect(trigger).toBeFocused();
-  await expect(page.locator('.draft-card')).toHaveCount(1);await trigger.click();
-  await dialog.getByRole('button',{name:'Excluir rascunho',exact:true}).click();
-  await expect(page.locator('.draft-card')).toHaveCount(0);await page.reload();await expect(page.locator('.draft-card')).toHaveCount(0);
+test('exclusão de rascunho exige confirmação e persiste após recarregar',async({page})=>{
+ await catalog(page);await seller(page);await seedDraft(page);await page.goto('/#area');
+ page.once('dialog',dialog=>dialog.dismiss());
+ await page.locator('.draft-card').getByRole('button',{name:'Excluir',exact:true}).click();
+ await expect(page.locator('.draft-card')).toHaveCount(1);
+ page.once('dialog',dialog=>dialog.accept());
+ await page.locator('.draft-card').getByRole('button',{name:'Excluir',exact:true}).click();
+ await expect(page.locator('.draft-card')).toHaveCount(0);
+ await page.reload();await expect(page.locator('.draft-card')).toHaveCount(0);
 });
 
-test('espaços vazios, preço inválido e falha de armazenamento não produzem sucesso falso',async({page})=>{
-  await catalog(page);await fillDraft(page,'     ');await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('Espaços em branco não contam');
-  await page.getByRole('textbox',{name:'O que você está vendendo?'}).fill('Produto para teste');
-  await page.getByRole('textbox',{name:'Preço em reais'}).fill('-10');await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('preço válido');
-  await page.getByRole('textbox',{name:'Preço em reais'}).fill('50,00');
-  await page.evaluate(()=>{Storage.prototype.setItem=()=>{throw new Error('quota')}});
-  await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('Não foi possível salvar');
-  await expect(page).toHaveURL(/#publicar$/);
+test('preço inválido e falha de publicação preservam o formulário sem sucesso falso',async({page})=>{
+ await catalog(page);await seller(page);let requests=0;
+ await page.route('**/api/account/listings',route=>{
+  if(route.request().method()==='POST'){requests++;return route.fulfill({status:503,contentType:'application/json',body:'{"error":"Não foi possível publicar agora."}'})}
+  return route.fulfill({contentType:'application/json',body:'{"listings":[]}'});
+ });
+ await fillListing(page);
+ await page.locator('input[name=price]').fill('-10');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('preço válido');expect(requests).toBe(0);
+ await page.locator('input[name=price]').fill('50,00');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('Não foi possível publicar agora');expect(requests).toBe(1);
+ await expect(page.getByLabel('Nome do produto ou serviço',{exact:true})).toHaveValue('Produto para teste');
+ await expect(page.getByText('Anúncio salvo.',{exact:false})).toHaveCount(0);
 });
 
-test('serviço pode ficar sob orçamento',async({page})=>{
-  await catalog(page);await fillDraft(page);
-  await page.getByRole('combobox',{name:'Categoria',exact:true}).selectOption('Serviços');
-  await page.getByRole('textbox',{name:'Preço em reais'}).fill('');await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
-  await expect(page.locator('.draft-card')).toContainText('Sob orçamento');
+test('serviço pode ser publicado sob orçamento',async({page})=>{
+ await catalog(page);const backend=await seller(page);await fillListing(page);
+ await page.getByRole('combobox',{name:'Categoria',exact:true}).selectOption('Serviços');
+ await page.locator('input[name=price]').fill('');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
+ expect(backend.payload().priceCents).toBeNull();expect(backend.payload().category).toBe('Serviços');
+ await page.getByRole('link',{name:'← Voltar à Minha área'}).click();
+ await expect(page.locator('.account-offer')).toContainText('Sob orçamento');
 });
 
 test('detalhe mostra contato somente quando fornecido pela API e oferece cópia manual',async({page})=>{
@@ -214,20 +239,30 @@ test('tema escuro permanente e navegação mobile funciona',async({page},info)=>
 
 test('cadastro informa erro da API sem sucesso falso',async({page})=>{
  await catalog(page);await page.route('**/api/account/register',route=>route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:route.request().postDataJSON().whatsapp==='5592000000000'?'E-mail já utilizado. Entre na sua conta.':'Telefone não foi normalizado.'})}));
- await page.goto('/#cadastro');await page.getByLabel('Seu nome').fill('Conta de teste');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByLabel('WhatsApp',{exact:true}).fill('+55 (92) 00000-0000');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Criar conta',exact:true}).click();await expect(page.getByRole('alert')).toContainText('E-mail já utilizado');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
+ await page.goto('/#cadastro');await page.getByLabel('Seu nome').fill('Conta de teste');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByLabel('WhatsApp',{exact:true}).fill('+55 (92) 00000-0000');await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Criar minha conta',exact:true}).click();await expect(page.getByRole('alert')).toContainText('E-mail já utilizado');await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
 });
 
-test('conta publica anúncio e encerra sessão',async({page})=>{
- await catalog(page);const account={id:'teste',name:'Conta de teste',email:'teste@example.invalid',neighborhood:'Poranga II',role:'seller',status:'pending'};let offers=[];let sent;
- await page.route('**/api/account/login',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({account})}));
- await page.route('**/api/account/listings',async route=>{if(route.request().method()==='POST'){sent=route.request().postDataJSON();offers=[{...sent,id:123,status:'published'}];return route.fulfill({status:201,contentType:'application/json',body:'{"id":123,"status":"published"}'})}return route.fulfill({contentType:'application/json',body:JSON.stringify({listings:offers})})});
- await page.route('**/api/account/profile',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({profile:{name:account.name,bio:''}})}));
- await page.route('**/api/account/logout',route=>route.fulfill({contentType:'application/json',body:'{"ok":true}'}));
- await page.goto('/#anunciar');await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Teste#26');await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('heading',{name:'Meus anúncios.'})).toBeVisible();
- await page.getByLabel('O que você está vendendo?',{exact:true}).fill('Item de teste automatizado');await page.getByLabel('Condição',{exact:true}).selectOption('Usado');await page.getByLabel('Preço em reais').fill('25,90');await page.getByLabel('Conte sobre o produto',{exact:true}).fill('Descrição para testar o envio online.');await page.getByLabel('Como será a entrega?').fill('Retirada a combinar');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();await expect(page.locator('.account-offer')).toContainText('Publicado');expect(sent.priceCents).toBe(2590);expect(sent.neighborhood).toBe('Poranga II');await expect(page.locator('.listing-card')).toHaveCount(0);
- await page.getByRole('button',{name:'Sair',exact:true}).click();await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
+test('conta entra, publica anúncio e encerra sessão',async({page})=>{
+ await catalog(page);const backend=await seller(page,{signedIn:false});
+ await page.goto('/#anunciar');await expect(page).toHaveURL(/#entrar$/);
+ await page.getByLabel('E-mail',{exact:true}).fill(account.email);await page.getByLabel('Senha',{exact:true}).fill('Teste#26');
+ await page.getByRole('button',{name:'Entrar na minha conta',exact:true}).click();
+ await expect(page).toHaveURL(/#publicar$/);
+ await expect(page.getByRole('heading',{name:'Publicar anúncio.'})).toBeVisible();
+ await page.getByLabel('Nome do produto ou serviço',{exact:true}).fill('Item de teste automatizado');
+ await page.getByLabel('Condição',{exact:true}).selectOption('Usado');await page.locator('input[name=price]').fill('25,90');
+ await page.locator('textarea[name=description]').fill('Descrição para testar o envio online.');
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
+ expect(backend.payload().priceCents).toBe(2590);expect(backend.payload().neighborhood).toBe('Poranga II');
+ expect(backend.payload().fulfillment).toBe('Retirada ou entrega a combinar pelo WhatsApp.');
+ await page.getByRole('link',{name:'← Voltar à Minha área'}).click();
+ await expect(page.locator('.account-offer')).toContainText('Publicado');
+ await expect(page.locator('.account-offer')).toContainText('Item de teste automatizado');
+ await page.getByRole('button',{name:'Sair',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
+ await page.reload();await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
 });
-
 
 test('retorno ao catálogo atualiza ofertas retiradas no servidor',async({page})=>{
  await catalog(page);let available=true;await page.route('**/api/listings**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:available?items:[]})}));
@@ -235,15 +270,15 @@ test('retorno ao catálogo atualiza ofertas retiradas no servidor',async({page})
 });
 
 test('escolher foto não chama IA nem altera os campos',async({page})=>{
- let calls=0;await catalog(page);
+ let calls=0;await catalog(page);await seller(page);
  await page.route('**/api/photo-analyze',route=>{calls++;return route.fulfill({status:503,body:'{}'})});
- await fillDraft(page,'Mesa anunciada manualmente');
+ await fillListing(page,'Mesa anunciada manualmente');
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGOs6IliwAaYsIoOWgkAFekBbvxvoJ4AAAAASUVORK5CYII=','base64');
  await page.getByLabel('Foto do produto (opcional)').setInputFiles({name:'produto.png',mimeType:'image/png',buffer:png});
  await expect(page.getByAltText('Foto escolhida para o anúncio')).toBeVisible();
- await expect(page.getByRole('textbox',{name:'O que você está vendendo?'})).toHaveValue('Mesa anunciada manualmente');
- await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
- await expect(page).toHaveURL(/#painel$/);expect(calls).toBe(0);
+ await expect(page.getByLabel('Nome do produto ou serviço',{exact:true})).toHaveValue('Mesa anunciada manualmente');
+ await expect(page.locator('textarea[name=description]')).toHaveValue('Descrição completa usada apenas no teste automatizado.');
+ expect(calls).toBe(0);
 });
 
 test('link direto abre anúncio que não estava no catálogo carregado',async({page})=>{
@@ -261,28 +296,24 @@ test('botão carrega a página seguinte sem repetir anúncios',async({page})=>{
  await expect(page.getByRole('button',{name:'Ver mais anúncios',exact:true})).toHaveCount(0);
 });
 
-test('perfil só fica editável após carregar e não perde texto ao publicar anúncio',async({page})=>{
- await catalog(page);
- const account={id:'teste',name:'Conta de teste',email:'teste@example.invalid',neighborhood:'Poranga II',role:'seller',status:'pending'};
- let release;const loaded=new Promise(resolve=>{release=resolve});
- await page.route('**/api/account/session',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({account})}));
- await page.route('**/api/account/listings',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(route.request().method()==='POST'?{id:123,status:'published'}:{listings:[]})}));
- await page.route('**/api/account/profile',async route=>{await loaded;return route.fulfill({contentType:'application/json',body:JSON.stringify({profile:{name:'Nome carregado',bio:''}})})});
- await page.goto('/#anunciar');
- await expect(page.getByText('Carregando sua conta…',{exact:true})).toBeVisible();
- await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveCount(0);
- release();
+test('perfil aguarda carregamento, permite salvar e persiste após recarregar',async({page})=>{
+ await catalog(page);await seller(page);let release;
+ const loaded=new Promise(resolve=>{release=resolve});let profile={name:'Nome carregado',bio:''};
+ await page.route('**/api/account/profile',async route=>{
+  await loaded;if(route.request().method()==='PATCH')profile={...profile,...route.request().postDataJSON()};
+  return route.fulfill({contentType:'application/json',body:JSON.stringify({profile})});
+ });
+ await page.goto('/#area');await expect(page.getByText('Carregando sua conta…',{exact:true})).toBeVisible();
+ await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveCount(0);release();
+ await page.locator('.profile-settings summary').click();
  await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome carregado');
- await page.getByRole('textbox',{name:'Nome comercial',exact:true}).fill('Nome novo ainda não salvo');
- await page.getByRole('textbox',{name:'O que você está vendendo?',exact:true}).fill('Mesa para testar carregamento');await page.getByLabel('Condição',{exact:true}).selectOption('Usado');
- await page.getByRole('textbox',{name:'Preço em reais'}).fill('50,00');
- await page.getByRole('textbox',{name:'Conte sobre o produto',exact:true}).fill('Mesa usada com quatro lugares.');
- await page.getByRole('textbox',{name:'Como será a entrega?'}).fill('Retirada no bairro');
- await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
- await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
- await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome novo ainda não salvo');
+ await page.getByRole('textbox',{name:'Nome comercial',exact:true}).fill('Nome atualizado no teste');
+ await page.getByRole('button',{name:'Salvar perfil',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Perfil atualizado.'})).toBeVisible();
+ expect(profile.name).toBe('Nome atualizado no teste');
+ await page.reload();await page.locator('.profile-settings summary').click();
+ await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome atualizado no teste');
 });
-
 
 test('caminho Anunciar abre diretamente a jornada do vendedor',async({page},info)=>{
   await catalog(page);await page.goto('/');
@@ -291,9 +322,10 @@ test('caminho Anunciar abre diretamente a jornada do vendedor',async({page},info
   }else{
     await page.locator('header a.seller-cta').click();
   }
-  await expect(page).toHaveURL(/#publicar$/);
+  await expect(page).toHaveURL(/#entrar$/);
   await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
-  await expect(page.getByText('Entre ou crie sua conta')).toBeVisible();
+  await expect(page.getByText('Entre para publicar e gerenciar seus anúncios. Quem compra não precisa de conta.')).toBeVisible();
+  expect(await page.evaluate(()=>sessionStorage.getItem('vendeplus:after-login'))).toBe('#publicar');
   await expect(page.getByRole('button',{name:'Criar conta'})).toBeVisible();
 });
 
