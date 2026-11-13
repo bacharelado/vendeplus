@@ -270,13 +270,12 @@ test('caminho Anunciar abre diretamente a jornada do vendedor',async({page},info
   await expect(page.getByRole('button',{name:'Criar conta'})).toBeVisible();
 });
 
-test('pesquisa rápida de eletrônicos abre catálogo filtrado',async({page})=>{
-  await catalog(page,items);await page.goto('/');
-  await page.getByRole('button',{name:'📱 Eletrônicos'}).click();
-  await expect(page).toHaveURL(/#catalogo$/);
-  await expect(page.locator('.filter-feedback')).toContainText('Eletrônicos');
+test('buscar eletrônicos sem menu de categorias',async({page})=>{
+  await catalog(page,[{...items[0],title:'Celular do bairro',category:'Eletrônicos'}]);await page.goto('/');
+  await page.getByRole('searchbox',{name:'Buscar anúncios'}).fill('eletronicos');
+  await expect(page.locator('.listing-card')).toHaveCount(1);
+  await expect(page.locator('.listing-card')).toContainText('Celular do bairro');
 });
-
 
 test('metadados do VENDE+ descrevem o projeto sem inventar ofertas',async({page})=>{
   await catalog(page);await page.goto('/');
