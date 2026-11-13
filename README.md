@@ -24,13 +24,15 @@ Produto da APOCALYPTIC para aproximar compradores e vendedores de Poranga I, Por
 
 ### Principais caminhos
 
-- `#inicio`: vitrine e busca inicial.
-- `#catalogo`: catálogo público e filtros.
-- `#anuncio-ID`: detalhes do anúncio e contato (links com fragmento; não são páginas HTML individualizadas para mecanismos de busca).
-- `#anunciar`: entrada orientada para vender, com cadastro ou login e formulário de anúncio.
-- `#conta`: acesso à conta e aos anúncios do vendedor.
+- `#inicio`: vitrine, busca e categorias; `#catalogo` abre a seção de anúncios.
+- `#anuncio-ID`: detalhes do anúncio e contato pelo WhatsApp.
+- `#vendedor-ID`: perfil público do vendedor.
+- `#entrar`: login, cadastro e recuperação de senha.
+- `#area`: anúncios da conta, rascunhos existentes, perfil e segurança.
+- `#publicar`: formulário de publicação; aceita `?anuncio=ID` ou `?rascunho=ID` para edição.
 - `#admin`: administração com autenticação e perfil autorizado.
-- `#painel` e `#publicar`: rascunhos **locais ao navegador**, que não são anúncios públicos.
+
+Rotas antigas continuam compatíveis. Veja [Navegação](docs/NAVEGACAO.md).
 
 ### APIs relevantes
 
@@ -88,4 +90,4 @@ Os testes devem evitar alterações em contas/anúncios reais. Testes de integra
 
 Orçamento autorizado: **R$ 0**. Não ativar serviços pagos ou expor chaves do Cloudinary, tokens da Cloudflare ou dados pessoais em commits e relatórios. Usar o ciclo **programar → publicar**, conforme decisão do fundador em 12 de novembro de 2026. Os workflows automáticos existentes continuam configurados; testes reais exigem consentimento e escopo controlado.
 
-Ver `docs/SEGURANCA.md`, `docs/DECISOES.md` e `docs/OPERACAO-PILOTO.md` para riscos e planejamento.
+Consulte o [índice de documentação](docs/README.md) para navegação, operação, segurança e registros históricos.

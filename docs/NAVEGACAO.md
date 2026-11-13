@@ -1,7 +1,7 @@
 # Navegação simplificada do VENDE+
 
 Sete tipos de página:
-1. Início e busca: #inicio — vitrine completa, categorias, filtros, paginação e explicação de compra na mesma página.
+1. Início e busca: #inicio — vitrine completa, busca, categorias, paginação e explicação de compra na mesma página.
 2. Anúncio: #anuncio-ID — produto e contato.
 3. Perfil público: #vendedor-ID.
 4. Entrar e cadastrar: #entrar.
