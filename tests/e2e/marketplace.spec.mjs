@@ -15,6 +15,10 @@ async function fillDraft(page,title='Produto para teste'){
 test('vitrine pública não contém avisos de demonstração nem anúncios inventados',async({page},info)=>{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await catalog(page);await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect(page.locator('.app')).toHaveClass(/dark/);
+  await expect(page.getByRole('button',{name:'Alternar tema'})).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('Itacoatiara');
   await expect(page.getByRole('heading',{name:/Encontre o que você precisa/})).toBeVisible();
   await expect(page.locator('.listing-card')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(/demonstração|simulação|fictício|Vendedor de demonstração/i);
@@ -126,6 +130,8 @@ test('detalhe mostra contato somente quando fornecido pela API e oferece cópia 
   await expect(page.getByRole('heading',{name:'Mesa de teste',exact:true})).toBeVisible();
   await expect(page.getByRole('link',{name:/Conversar no WhatsApp/})).toHaveCount(0);
   await expect(page.locator('.contact-unavailable')).toBeVisible();
+  await expect(page.locator('.detail-location')).toHaveText('Poranga e Jacarezinho');
+  await expect(page.locator('.detail-location')).not.toContainText('Itacoatiara');
   await page.getByRole('button',{name:'Compartilhar anúncio'}).click();
   await expect(page.getByRole('textbox',{name:'Link do anúncio'})).toHaveValue(/#anuncio-101$/);
 });
@@ -158,13 +164,12 @@ test('todas as páginas cabem em 320 px e na largura do perfil',async({page},inf
   expect(errors).toEqual([]);
 });
 
-test('tema escuro padrão persiste e navegação mobile funciona',async({page},info)=>{
+test('tema escuro permanente e navegação mobile funciona',async({page},info)=>{
   await catalog(page);await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await expect(page.locator('.app')).toHaveClass(/dark/);
-  await page.getByRole('button',{name:'Alternar tema'}).click();await page.reload();
-  await expect(page.locator('.app')).not.toHaveClass(/dark/);
-  await page.getByRole('button',{name:'Alternar tema'}).click();await page.reload();
-  await expect(page.locator('.app')).toHaveClass(/dark/);
+  await expect(page.getByRole('button',{name:'Alternar tema'})).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('Itacoatiara');
   await page.screenshot({path:info.outputPath('tema-escuro.png'),fullPage:true});
   const mobile=page.getByRole('navigation',{name:'Atalhos para celular'});
   if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Buscar',exact:true}).click();await expect(page).toHaveURL(/#catalogo$/)}else{await expect(mobile).toBeHidden()}
@@ -271,6 +276,8 @@ test('metadados do VENDE+ descrevem o projeto sem inventar ofertas',async({page}
   await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute('content','VENDE+');
   await expect(page.locator('meta[property="og:locale"]')).toHaveAttribute('content','pt_BR');
   await expect(page.locator('meta[name="description"]')).toHaveAttribute('content',/Poranga e Jacarezinho/);
+  await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content',/Itacoatiara/);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content','#090a0d');
 });
 
 test('aba usa título verdadeiro do anúncio aberto',async({page})=>{
