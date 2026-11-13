@@ -28,3 +28,8 @@ test('ordenar por menor preço deixa orçamento por último', () => {
 test('ordenar por maior preço deixa orçamento por último', () => {
   assert.deepEqual(filterListings(samples, {sortOrder:'maior'}).map(x=>x.id), [2,1,4]);
 });
+
+test('pesquisa direta encontra categorias mesmo sem filtros visíveis', () => {
+  assert.deepEqual(filterListings(samples, {query:'  SERVICOS '}).map(x=>x.id), [4,2]);
+  assert.deepEqual(filterListings(samples, {query:'alimentacao'}).map(x=>x.id), [1]);
+});
