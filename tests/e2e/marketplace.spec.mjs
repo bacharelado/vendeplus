@@ -208,7 +208,7 @@ test('tema escuro permanente e navegação mobile funciona',async({page},info)=>
   await expect(page.locator('body')).not.toContainText('Itacoatiara');
   await page.screenshot({path:info.outputPath('tema-escuro.png'),fullPage:true});
   const mobile=page.getByRole('navigation',{name:'Atalhos para celular'});
-  if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Início e busca',exact:true}).click();await expect(page).toHaveURL(/#catalogo$/)}else{await expect(mobile).toBeHidden()}
+  if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Início e busca',exact:true}).click();await expect(page).toHaveURL(/#inicio$/)}else{await expect(mobile).toBeHidden()}
 });
 
 
