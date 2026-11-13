@@ -1,8 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
-:root{font-family:'DM Sans',system-ui,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;color:#172033;background:#f6f7f9}
+:root{font-family:'DM Sans',system-ui,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;color:#f5f5f7;background:#090a0d}
 :root[data-theme=dark]{color-scheme:dark;background:#101722;color:#f1f5f9}
-:root[data-theme=light]{color-scheme:light;background:#f6f7f9;color:#172033}
 *{box-sizing:border-box}
 body{margin:0}
 button,input,select,textarea{font:inherit}
@@ -17,8 +16,7 @@ h2{font-size:1.2rem;line-height:1.35;letter-spacing:-.025em}
 h3{font-size:1rem;line-height:1.4}
 p{line-height:1.65}
 small{font-size:.8rem}
-.app{color-scheme:light;--bg:#f6f7f9;--surface:#fff;--fg:#172033;--muted:#627086;--border:#dfe4eb;--soft:#eef2f7;--brand:#2456c7;--brand-hover:#1d45a0;--button-ink:#fff;--green:var(--brand);--green-deep:var(--brand-hover);--error:#9d2525;--error-bg:#fff3f3;--radius:9px;background:var(--bg);color:var(--fg);min-height:100vh}
-.app.dark{--bg:#101722;--surface:#1a2433;--fg:#f1f5f9;--muted:#acb9cc;--border:#354254;--soft:#253246;--brand:#9cbbff;--brand-hover:#c3d5ff;--button-ink:#14213a;--error:#ffb5b5;--error-bg:#382328;color-scheme:dark}
+.app{color-scheme:dark;--bg:#090a0d;--surface:#15171c;--fg:#f5f5f7;--muted:#a5a9b2;--border:#30343d;--soft:#20232a;--brand:#f11322;--brand-hover:#cf0a17;--button-ink:#fff;--green:var(--brand);--green-deep:var(--brand-hover);--error:#ffb8be;--error-bg:#381a20;--radius:9px;background:var(--bg);color:var(--fg);min-height:100vh}
 .container{width:100%;max-width:1200px;padding:0 28px;margin:0 auto}
 .icon{flex:none;vertical-align:middle}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:3px}
@@ -268,7 +266,7 @@ summary{cursor:pointer;font-weight:600;font-size:.84rem}
 @media(max-width:1000px){.header-row{gap:16px}.header-row nav{gap:16px}.category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.catalog-layout{grid-template-columns:170px minmax(0,1fr);gap:18px}.editor-layout{grid-template-columns:minmax(0,1fr) 240px}}
 @media(max-width:760px){
  .container{padding-left:18px;padding-right:18px}.main{padding-top:18px;padding-bottom:32px}
- .header-row{min-height:64px;gap:10px}.brand{font-size:1.65rem}.header-row nav{display:none}.seller-cta{margin-left:auto;padding:10px 13px;min-height:40px;font-size:.8rem}.theme{margin-left:0}.location-strip{font-size:.63rem}.location-strip .container{min-height:30px}
+ .header-row{min-height:64px;gap:10px}.brand{font-size:1.65rem}.header-row nav{display:none}.seller-cta{margin-left:auto;padding:10px 13px;min-height:40px;font-size:.8rem}.location-strip{font-size:.63rem}.location-strip .container{min-height:30px}
  .buyer-hero{padding:20px}.hero-copy{display:block}.hero-copy h1{font-size:1.7rem}.hero-copy>p{font-size:.82rem;margin-bottom:18px}.search{width:100%}.search input{font-size:16px}.buyer-benefits{font-size:.69rem;gap:8px 16px;margin-top:14px;padding-top:12px}
  .category{min-height:56px;padding:12px 8px;gap:7px}.category strong{font-size:.74rem}.category .icon{width:18px;height:18px}
  .product-grid,.catalog-results .product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.listing-body{padding:13px 12px 10px}.listing-body h3{font-size:.88rem;line-height:1.45}.price{font-size:1.28rem}.listing-contact{padding:0 12px 12px}.listing-contact .button{font-size:.71rem;gap:6px}.listing-contact .icon{width:16px;height:16px}.listing-image{aspect-ratio:1}.condition-badge{bottom:8px;left:8px;font-size:.6rem}
@@ -358,7 +356,7 @@ summary{cursor:pointer;font-weight:600;font-size:.84rem}
 .app.dark .brand span{color:#ff1b2b}
 .app.dark .header-row nav a[aria-current]{color:#ff4652}
 .app.dark .seller-cta{border-radius:999px;box-shadow:0 8px 24px rgba(241,19,34,.22)}
-.app.dark .theme{background:#1a1c22;border-color:#343840;color:#f5f5f7}
+
 .app.dark .buyer-hero{
   position:relative;
   overflow:hidden;
