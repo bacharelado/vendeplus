@@ -60,6 +60,7 @@ export function App(){
   const catalogVersion=useRef(0);
   const [detail,setDetail]=useState<{id?:number;kind:'loading'|'ready'|'unavailable';listing?:Listing}>({kind:'loading'});
   const [query,setQuery]=useState('');
+  const [category,setCategory]=useState('Todas');
   const [notice,setNotice]=useState('');
   const [dialog,setDialog]=useState<{title:string;content:ReactNode}|null>(null);
   const mainRef=useRef<HTMLElement>(null);
@@ -80,9 +81,11 @@ export function App(){
   useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda em Poranga e Jacarezinho',entrar:route.recover?'Recuperar senha':'Entrar ou cadastrar',area:'Minha área',publicar:route.editId?'Editar anúncio':'Publicar anúncio',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor'};document.title=`${titles[route.name]||'Página não encontrada'} | VENDE+`},[route.name,route.editId,route.recover]);
   useEffect(()=>{if(route.section)requestAnimationFrame(()=>document.getElementById(route.section!)?.scrollIntoView({block:'start'}))},[route.name,route.section]);
   useEffect(()=>{if(route.name==='anuncio'&&detail.kind==='ready'&&detail.id===route.id&&detail.listing){document.title=`${detail.listing.title} | VENDE+`}},[route.name,route.id,detail]);
-  const reset=()=>setQuery('');
+  const reset=()=>{setQuery('');setCategory('Todas')};
   const browse=()=>{reset();if(route.name!=='inicio')location.hash='catalogo';else document.getElementById('ofertas')?.scrollIntoView({behavior:'smooth',block:'start'})};
-  const filtered=filterListings(catalog.listings,{query});
+  const filtered=filterListings(catalog.listings,{query,category});
+  const browsing=Boolean(query.trim()||category!=='Todas');
+  const sparse=catalog.kind==='ready'&&!browsing&&filtered.length>0&&filtered.length<=2;
   const active=detail.id===route.id&&detail.kind==='ready'?detail.listing:undefined;
   useEffect(()=>{
     if(route.name!=='anuncio'||!route.id)return;
@@ -103,28 +106,75 @@ export function App(){
     setDialog({title:copied?'Link copiado':'Compartilhar anúncio',content:<><p>{copied?'Envie o endereço para quem pode se interessar.':'Selecione o endereço abaixo para copiar e enviar.'}</p><label className="share-label">Link do anúncio<input readOnly value={link} onFocus={e=>e.currentTarget.select()}/></label></>});
   };
   useEffect(()=>{const reload=()=>{if(document.visibilityState==='visible'&&['inicio','anuncio'].includes(route.name))setRefresh(value=>value+1)};document.addEventListener('visibilitychange',reload);return ()=>document.removeEventListener('visibilitychange',reload)},[route.name]);
-  const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando anúncios…</div>:catalog.kind==='unavailable'?<Empty title="Não foi possível carregar os anúncios"><p>Tente novamente em alguns instantes.</p><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:query.trim()?<Empty title={`Nenhum resultado para “${query.trim()}”`} icon="search"><p>Tente outra palavra ou volte aos anúncios do bairro.</p><button className="button outline" onClick={reset}>Ver todos os anúncios</button></Empty>:<Empty title="Ainda não há anúncios no bairro" icon="search"><p>Seja o primeiro a anunciar em Poranga e Jacarezinho.</p><a className="button primary" href="#publicar">Publicar meu anúncio</a></Empty>;
+  const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando anúncios…</div>:catalog.kind==='unavailable'?<Empty title="Não foi possível carregar os anúncios"><p>Tente novamente em alguns instantes.</p><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:browsing?<Empty title="Nenhum anúncio encontrado" icon="search"><p>Experimente outra busca ou explore todas as categorias.</p><button className="button outline" onClick={reset}>Ver todos os anúncios</button></Empty>:<Empty title="Ainda não há anúncios no bairro" icon="search"><p>O VENDE+ cresce com anúncios reais. Que tal começar pelo seu?</p><a className="button primary" href="#publicar">Publicar meu anúncio</a></Empty>;
   return <div className="app dark">
     <a href="#conteudo" className="skip-link" onClick={e=>{e.preventDefault();mainRef.current?.focus()}}>Pular para o conteúdo</a>
     <div className="location-strip"><div className="container"><span><Icon name="pin"/>Feito para Poranga e Jacarezinho</span></div></div>
     <header className="topbar buyer-header"><div className="container header-row"><a className="brand" href="#inicio" aria-label="VENDE+ início">VENDE<span>+</span></a><nav aria-label="Menu principal"><a href="#inicio" onClick={e=>{e.preventDefault();browse()}} aria-current={route.name==='inicio'?'page':undefined}>Ver anúncios</a><a href="#area" aria-current={route.name==='area'?'page':undefined}>Minha área</a></nav><a href="#publicar" className="button primary seller-cta"><Icon name="plus"/>Anunciar</a></div></header>
     <main ref={mainRef} id="conteudo" tabIndex={-1} className="container main">
       {notice&&<div className="notice" role="status">{notice}<button className="icon-button" onClick={()=>setNotice('')} aria-label="Fechar aviso"><Icon name="close"/></button></div>}
-      {route.name==='inicio'&&<div className="buyer-home">
-        <section id="ofertas" className="buyer-offers simple-market" aria-label="Anúncios do bairro">
-          <div className="simple-market-heading">
-            <h1>Anúncios do bairro</h1>
-            {catalog.kind==='ready'&&<span className="simple-market-count" role="status" aria-live="polite">{filtered.length} {filtered.length===1?'anúncio':'anúncios'}</span>}
+      {route.name==='inicio'&&<div className="buyer-home marketplace-home">
+        <section className="discover-hero" aria-label="Encontre no VENDE+">
+          <div className="discover-hero-copy">
+            <span className="discover-eyebrow"><Icon name="pin"/> O MARKETPLACE DO SEU BAIRRO</span>
+            <h1>Tudo perto de você.<span> Em um só lugar.</span></h1>
+            <p>Encontre produtos e serviços em Poranga I, Poranga II e Jacarezinho. Negocie direto com quem anuncia.</p>
+            <label className="simple-market-search discover-search">
+              <Icon name="search"/>
+              <input name="q" type="search" aria-label="Buscar anúncios" placeholder="O que você está procurando?" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/>
+              {query&&<button type="button" aria-label="Limpar busca" title="Limpar busca" onClick={reset}><Icon name="close"/></button>}
+            </label>
           </div>
-          <div className="simple-market-search">
-            <Icon name="search"/>
-            <input name="q" type="search" aria-label="Buscar anúncios" placeholder="Buscar produto ou serviço…" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/>
-            {query&&<button type="button" aria-label="Limpar busca" title="Limpar busca" onClick={reset}><Icon name="close"/></button>}
+          <aside className="discover-hero-panel" aria-label="Por que usar o VENDE+">
+            <span className="discover-panel-kicker">SEU BAIRRO, SUAS OPORTUNIDADES</span>
+            <div className="discover-panel-mark">VENDE<span>+</span></div>
+            <div className="discover-panel-list"><span><Icon name="check"/> Explore sem cadastro</span><span><Icon name="message-circle"/> Contato pelo WhatsApp</span><span><Icon name="pin"/> Negocie perto de casa</span></div>
+            <a href="#publicar" className="discover-panel-link">Quero anunciar <Icon name="arrow"/></a>
+          </aside>
+        </section>
+
+        <section className="market-categories" aria-labelledby="market-categories-title">
+          <div className="market-categories-heading"><h2 id="market-categories-title">Explore por categoria</h2><span>Escolha o que combina com você</span></div>
+          <div className="market-chip-row" role="group" aria-label="Categorias dos anúncios">
+            <button type="button" className="market-chip" aria-pressed={category==='Todas'} onClick={()=>{setCategory('Todas');document.getElementById('ofertas')?.scrollIntoView({behavior:'smooth',block:'start'})}}><span className="market-chip-symbol">✦</span> Todos</button>
+            {categories.map(item=><button type="button" key={item.name} className="market-chip" aria-pressed={category===item.name} onClick={()=>{setCategory(current=>current===item.name?'Todas':item.name);document.getElementById('ofertas')?.scrollIntoView({behavior:'smooth',block:'start'})}}><span className="market-chip-symbol" aria-hidden="true">{item.emoji}</span>{item.name}</button>)}
           </div>
-          {catalogContent()}
+        </section>
+
+        <section id="ofertas" className="buyer-offers market-offers" aria-label="Anúncios do bairro">
+          <div className="market-offers-heading">
+            <div><span className="market-section-kicker">DESCUBRA PERTO DE VOCÊ</span><h2>Anúncios do bairro</h2><p>Veja o que as pessoas estão anunciando.</p></div>
+            <div className="market-offers-tools">
+              {catalog.kind==='ready'&&<span className="simple-market-count" role="status" aria-live="polite">{filtered.length} {filtered.length===1?'anúncio':'anúncios'}</span>}
+              {browsing&&<button type="button" className="market-reset" onClick={reset}>Ver tudo <Icon name="close"/></button>}
+            </div>
+          </div>
+          <div className={sparse?'market-showcase market-showcase--sparse'+(filtered.length===1?' market-showcase--single':''):'market-showcase'}>
+            {catalogContent()}
+            {sparse&&<aside className="market-discovery-aside" aria-label="Anuncie no VENDE+">
+              <div className="market-discovery-stamp"><Icon name="plus"/></div>
+              <span className="market-section-kicker">TEM ESPAÇO PRA VOCÊ</span>
+              <h3>Seu próximo anúncio pode estar aqui.</h3>
+              <p>Tem algo para vender ou um serviço para oferecer? Publique no bairro e converse diretamente com interessados.</p>
+              <a className="button primary" href="#publicar"><Icon name="plus"/> Criar meu anúncio</a>
+            </aside>}
+          </div>
           {nextCursor&&catalog.kind==='ready'&&<button className="button outline full" disabled={loadingMore} onClick={()=>void more()}>{loadingMore?'Carregando…':'Ver mais anúncios'}</button>}
         </section>
-        <p id="como-comprar" className="buyer-safety"><Icon name="shield"/>Confira o produto e combine a entrega antes de pagar. A negociação é feita diretamente com quem anuncia.</p>
+
+        <section className="market-guide" aria-labelledby="market-guide-title">
+          <div className="market-guide-heading"><span className="market-section-kicker">SIMPLES ASSIM</span><h2 id="market-guide-title">Encontre, converse e combine.</h2><p>O VENDE+ conecta pessoas do bairro. A negociação é feita diretamente entre comprador e vendedor.</p></div>
+          <div className="market-guide-steps">
+            <div><span className="market-guide-icon"><Icon name="search"/></span><strong>1. Explore anúncios</strong><p>Encontre produtos e serviços que estão sendo oferecidos.</p></div>
+            <div><span className="market-guide-icon"><Icon name="message-circle"/></span><strong>2. Chame no WhatsApp</strong><p>Converse diretamente com a pessoa que anunciou.</p></div>
+            <div><span className="market-guide-icon"><Icon name="shield"/></span><strong>3. Combine com cuidado</strong><p>Confira o produto e combine entrega e pagamento entre vocês.</p></div>
+          </div>
+        </section>
+        <section className="market-seller-callout" aria-label="Comece a vender">
+          <div><span className="market-section-kicker">VOCÊ TAMBÉM PODE ANUNCIAR</span><h2>Tem algo para vender?</h2><p>Seu espaço no VENDE+ está pronto para receber seu anúncio.</p></div>
+          <a className="button primary" href="#publicar"><Icon name="plus"/> Anunciar agora</a>
+        </section>
+        <p id="como-comprar" className="buyer-safety"><Icon name="shield"/>Confira o produto e combine a entrega antes de pagar. O VENDE+ não intermedeia pagamentos.</p>
       </div>}
       {route.name==='anuncio'&&(active?<><a href="#catalogo" className="back"><Icon name="arrow"/>Voltar às ofertas</a><div className="detail"><div className="detail-media"><span aria-hidden="true">{categories.find(c=>c.name===active.category)?.emoji}</span>{active.image&&<img src={active.image} alt={active.title} referrerPolicy="no-referrer" onError={e=>{e.currentTarget.hidden=true}}/>}</div><div className="detail-copy"><span className="eyebrow">{active.category} · {active.condition}</span><h1>{active.title}</h1><strong className="big-price">{formatBRL(active.priceCents)}</strong><span className="detail-location"><Icon name="pin"/>{active.neighborhood||'Poranga e Jacarezinho'}</span><div className="seller-box"><span className="seller-avatar"><Icon name="user"/></span><div><small>Anunciado por</small><a className="text-link" href={active.sellerId?'#vendedor-'+active.sellerId:'#catalogo'}><strong>{active.seller}</strong></a></div></div>{active.contactWhatsapp?<ContactLink listing={active}/>:<p className="contact-unavailable">Contato do anunciante indisponível no momento.</p>}<button className="button outline full" onClick={()=>void share(active)}>Compartilhar anúncio</button><ReportListing listingId={active.id}/><h2>Sobre esta oferta</h2><p className="description">{active.description}</p><h2>Como será a entrega?</h2><p>{active.fulfillment}</p><div className="safety-note"><Icon name="shield"/><p>Confira o produto e combine as condições diretamente com quem anuncia. O VENDE+ não recebe nem intermedeia pagamentos.</p></div></div></div></>:detail.id!==route.id||detail.kind==='loading'?<div role="status" className="catalog-loading">Carregando anúncio…</div>:<Empty title={detail.kind==='unavailable'?'Não foi possível carregar esta oferta':'Esta oferta não está disponível'}><p>{detail.kind==='unavailable'?'Tente novamente em alguns instantes.':'Ela pode ter sido encerrada ou retirada do catálogo.'}</p><a className="button primary" href="#catalogo">Ver anúncios</a></Empty>)}
       {route.name==='vendedor'&&route.sellerId&&<SellerPublicProfile id={route.sellerId}/>}

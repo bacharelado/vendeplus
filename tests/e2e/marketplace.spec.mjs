@@ -59,6 +59,31 @@ test('catálogo usa a API e a busca direta',async({page})=>{
   await expect(page.locator('.listing-card')).toHaveCount(2);
 });
 
+test('descoberta marketplace oferece categorias compactas e apenas anúncios reais',async({page})=>{
+  await catalog(page,items);await page.goto('/');
+  await expect(page.getByRole('heading',{name:/Tudo perto de você/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Explore por categoria'})).toBeVisible();
+  await expect(page.locator('.market-chip')).toHaveCount(7);
+  await expect(page.locator('.listing-card')).toHaveCount(2);
+  await expect(page.locator('.buyer-hero, .filters, .category-section')).toHaveCount(0);
+  const service=page.locator('.market-chip').filter({hasText:'Serviços'});
+  await service.click();
+  await expect(service).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('.listing-card')).toHaveCount(1);
+  await expect(page.locator('.listing-card')).toContainText('Serviço de teste');
+  await page.getByRole('button',{name:'Ver tudo'}).click();
+  await expect(page.locator('.listing-card')).toHaveCount(2);
+  await expect(service).toHaveAttribute('aria-pressed','false');
+});
+
+test('vitrine com apenas um anúncio usa convite real para anunciar',async({page})=>{
+  await catalog(page,[items[0]]);await page.goto('/');
+  await expect(page.locator('.listing-card')).toHaveCount(1);
+  await expect(page.locator('.market-discovery-aside')).toBeAttached();
+  await expect(page.locator('.market-discovery-aside a[href="#publicar"]')).toHaveCount(1);
+  await expect(page.locator('.listing-card')).not.toContainText('Oferta fictícia');
+});
+
 test('anúncios usam cartão escuro e texto legível mesmo em tela grande',async({page})=>{
   await catalog(page,items);await page.goto('/');
   const card=page.locator('.listing-card').first();
@@ -183,7 +208,7 @@ test('tema escuro permanente e navegação mobile funciona',async({page},info)=>
   await expect(page.locator('body')).not.toContainText('Itacoatiara');
   await page.screenshot({path:info.outputPath('tema-escuro.png'),fullPage:true});
   const mobile=page.getByRole('navigation',{name:'Atalhos para celular'});
-  if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Início e busca',exact:true}).click();await expect(page).toHaveURL(/#catalogo$/)}else{await expect(mobile).toBeHidden()}
+  if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Início e busca',exact:true}).click();await expect(page).toHaveURL(/#inicio$/)}else{await expect(mobile).toBeHidden()}
 });
 
 
