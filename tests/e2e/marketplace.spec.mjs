@@ -46,17 +46,15 @@ test('indisponibilidade da API é tratada sem catálogo fictício e permite tent
   await expect(page.locator('.listing-card')).toHaveCount(0);
 });
 
-test('catálogo usa a API, busca, categoria e ordenação',async({page})=>{
+test('catálogo usa a API e a busca direta',async({page})=>{
   await catalog(page,items);await page.goto('/#catalogo');
   await expect(page.locator('.listing-card')).toHaveCount(2);
-  await page.getByRole('textbox',{name:'Buscar anúncios'}).fill('  MESA ');
+  await expect(page.locator('.buyer-hero, .category-section, .filters')).toHaveCount(0);
+  const search=page.getByRole('searchbox',{name:'Buscar anúncios'});
+  await search.fill('Mesa');
   await expect(page.locator('.listing-card')).toHaveCount(1);
-  await page.getByRole('button',{name:'Limpar filtros'}).click();
-  await page.getByRole('combobox',{name:'Ordenação'}).selectOption('menor');
-  await expect(page.locator('.listing-card').first()).toContainText('Mesa de teste');
-  await page.locator('.catalog-sidebar').getByRole('button',{name:'Serviços',exact:true}).click();
-  await expect(page.locator('.listing-card')).toHaveCount(1);
-  await expect(page.locator('.listing-card')).toContainText('Sob orçamento');
+  await page.getByRole('button',{name:'Limpar busca'}).click();
+  await expect(page.locator('.listing-card')).toHaveCount(2);
 });
 
 test('anúncios usam cartão escuro e texto legível mesmo em tela grande',async({page})=>{
