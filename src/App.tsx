@@ -165,13 +165,13 @@ export function App(){
         <section className="apocalyptic-feature" aria-labelledby="apocalyptic-feature-title" style={{margin:'48px 0',padding:'clamp(20px,4vw,36px)',border:'1px solid #5d2332',borderRadius:18,background:'linear-gradient(135deg,#171016,#0b0d12)',color:'#fff'}}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,290px),1fr))',alignItems:'center',gap:24}}>
             <div>
-              <span className="market-section-kicker">APOCALYPTIC · TECNOLOGIA</span>
-              <h2 id="apocalyptic-feature-title" style={{fontSize:'clamp(24px,3.5vw,38px)',lineHeight:1.15,margin:'12px 0'}}>Por trás do VENDE+, existe uma visão maior.</h2>
-              <p style={{color:'#c6c7cf',lineHeight:1.7}}>Conheça a APOCALYPTIC, iniciativa de tecnologia e cibersegurança por trás do desenvolvimento desta plataforma.</p>
-              <a href="https://drive.google.com/file/d/1lKwwG79DWtKwp-v8o_C__FPMj-849pxN/view" target="_blank" rel="noopener noreferrer" style={{color:'#fca5a5',fontWeight:700}}>Abrir vídeo em outra aba</a>
+              <span className="market-section-kicker">APOCALYPTIC · ALERTA DE CIBERSEGURANÇA</span>
+              <h2 id="apocalyptic-feature-title" style={{fontSize:'clamp(24px,3.5vw,38px)',lineHeight:1.15,margin:'12px 0'}}>Sua empresa está protegida — ou só contando com a sorte?</h2>
+              <p style={{color:'#c6c7cf',lineHeight:1.7}}>Invasões digitais, vazamentos de dados e operações interrompidas: este vídeo alerta sobre os riscos cibernéticos que empresas e serviços precisam levar a sério.</p>
+              <a href="https://drive.google.com/file/d/1lKwwG79DWtKwp-v8o_C__FPMj-849pxN/view" target="_blank" rel="noopener noreferrer" style={{color:'#fca5a5',fontWeight:700}}>Assistir ao vídeo</a>
             </div>
             <div style={{maxWidth:380,width:'100%',margin:'0 auto'}}>
-              <iframe title="Vídeo institucional APOCALYPTIC" src="https://drive.google.com/file/d/1lKwwG79DWtKwp-v8o_C__FPMj-849pxN/preview" loading="lazy" allow="autoplay; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" style={{width:'100%',aspectRatio:'9 / 16',border:'1px solid #613343',borderRadius:14,background:'#08090c',display:'block'}} />
+              <iframe title="Vídeo de conscientização APOCALYPTIC sobre riscos cibernéticos" src="https://drive.google.com/file/d/1lKwwG79DWtKwp-v8o_C__FPMj-849pxN/preview" loading="lazy" allow="autoplay; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" style={{width:'100%',aspectRatio:'9 / 16',border:'1px solid #613343',borderRadius:14,background:'#08090c',display:'block'}} />
             </div>
           </div>
         </section>
