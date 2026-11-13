@@ -7,7 +7,7 @@ export function filterListings(listings, filters = {}) {
       && (category === 'Todas' || listing.category === category)
       && (condition === 'Todas' || listing.condition === condition)
       && (neighborhood === 'Todos' || listing.neighborhood === neighborhood)
-      && normalize(`${listing.title} ${listing.description} ${listing.seller}`).includes(normalized))
+      && normalize(`${listing.title} ${listing.description} ${listing.seller} ${listing.category} ${listing.neighborhood ?? ''}`).includes(normalized))
     .sort((a, b) => {
       if (sortOrder === 'menor') return (a.priceCents ?? Number.MAX_SAFE_INTEGER) - (b.priceCents ?? Number.MAX_SAFE_INTEGER);
       if (sortOrder === 'maior') return (b.priceCents ?? -1) - (a.priceCents ?? -1);

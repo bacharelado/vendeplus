@@ -19,20 +19,22 @@ test('vitrine pública não contém avisos de demonstração nem anúncios inven
   await expect(page.locator('.app')).toHaveClass(/dark/);
   await expect(page.getByRole('button',{name:'Alternar tema'})).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('Itacoatiara');
-  await expect(page.getByRole('heading',{name:/Encontre o que você precisa/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Anúncios do bairro'})).toBeVisible();
+  await expect(page.locator('.buyer-hero, .category-section, .filters')).toHaveCount(0);
+  await expect(page.getByRole('searchbox',{name:'Buscar anúncios'})).toBeVisible();
   await expect(page.locator('.listing-card')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(/demonstração|simulação|fictício|Vendedor de demonstração/i);
   await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
   await expect(page.locator('.demo-banner')).toHaveCount(0);
-  await expect(page.locator('header a.seller-cta')).toHaveAttribute('href','#anunciar');
-  await expect(page.locator('main').getByRole('link',{name:'Publicar meu anúncio'})).toHaveAttribute('href','#anunciar');
-  await expect(page.locator('.mobile-bottom a[href="#anunciar"]')).toHaveText('Anunciar');
+  await expect(page.locator('header a.seller-cta')).toHaveAttribute('href','#publicar');
+  await expect(page.locator('main').getByRole('link',{name:'Publicar meu anúncio'})).toHaveAttribute('href','#publicar');
+  await expect(page.locator('.mobile-bottom a[href="#publicar"]')).toHaveText('Anunciar');
   if(page.viewportSize()?.width>=761){
     await expect(page.locator('header a.seller-cta')).toBeVisible();
   }else{
     await expect(page.locator('.mobile-bottom').getByRole('link',{name:'Anunciar'})).toBeVisible();
   }
-  await expect(page.locator('footer').getByRole('link',{name:'Área de quem anuncia',exact:true})).toHaveAttribute('href','#conta');
+  await expect(page.locator('footer').getByRole('link',{name:'Minha área',exact:true})).toHaveAttribute('href','#area');
   await page.screenshot({path:info.outputPath('vitrine.png'),fullPage:true});expect(errors).toEqual([]);
 });
 
@@ -46,17 +48,15 @@ test('indisponibilidade da API é tratada sem catálogo fictício e permite tent
   await expect(page.locator('.listing-card')).toHaveCount(0);
 });
 
-test('catálogo usa a API, busca, categoria e ordenação',async({page})=>{
+test('catálogo usa a API e a busca direta',async({page})=>{
   await catalog(page,items);await page.goto('/#catalogo');
   await expect(page.locator('.listing-card')).toHaveCount(2);
-  await page.getByRole('textbox',{name:'Buscar anúncios'}).fill('  MESA ');
+  await expect(page.locator('.buyer-hero, .category-section, .filters')).toHaveCount(0);
+  const search=page.getByRole('searchbox',{name:'Buscar anúncios'});
+  await search.fill('Mesa');
   await expect(page.locator('.listing-card')).toHaveCount(1);
-  await page.getByRole('button',{name:'Limpar filtros'}).click();
-  await page.getByRole('combobox',{name:'Ordenação'}).selectOption('menor');
-  await expect(page.locator('.listing-card').first()).toContainText('Mesa de teste');
-  await page.locator('.catalog-sidebar').getByRole('button',{name:'Serviços',exact:true}).click();
-  await expect(page.locator('.listing-card')).toHaveCount(1);
-  await expect(page.locator('.listing-card')).toContainText('Sob orçamento');
+  await page.getByRole('button',{name:'Limpar busca'}).click();
+  await expect(page.locator('.listing-card')).toHaveCount(2);
 });
 
 test('anúncios usam cartão escuro e texto legível mesmo em tela grande',async({page})=>{
@@ -70,16 +70,16 @@ test('anúncios usam cartão escuro e texto legível mesmo em tela grande',async
   await expect(card.locator('.listing-image')).toHaveCSS('background-color','rgb(16, 18, 22)');
 });
 
-test('busca inicial e categorias abrem o catálogo filtrado',async({page})=>{
+test('busca por categoria e limpar pesquisa',async({page})=>{
   await catalog(page,items);await page.goto('/');
-  await page.getByRole('textbox',{name:'Pesquisar no bairro'}).fill('Mesa');
-  await page.getByRole('button',{name:'Buscar',exact:true}).click();
-  await expect(page.getByRole('textbox',{name:'Buscar anúncios'})).toHaveValue('Mesa');
-  await expect(page.locator('.listing-card')).toHaveCount(1);
-  await page.getByRole('link',{name:'VENDE+ início'}).click();
-  await page.locator('.category-grid').getByRole('button',{name:'Serviços',exact:true}).click();
+  const search=page.getByRole('searchbox',{name:'Buscar anúncios'});
+  await search.fill('servicos');
   await expect(page.locator('.listing-card')).toHaveCount(1);
   await expect(page.locator('.listing-card')).toContainText('Serviço de teste');
+  await search.fill('sem resultado');
+  await expect(page.getByRole('heading',{name:/Nenhum resultado/})).toBeVisible();
+  await page.getByRole('button',{name:'Ver todos os anúncios'}).click();
+  await expect(page.locator('.listing-card')).toHaveCount(2);
 });
 
 test('rascunho persiste após recarregar e não vira oferta pública',async({page})=>{
@@ -183,7 +183,7 @@ test('tema escuro permanente e navegação mobile funciona',async({page},info)=>
   await expect(page.locator('body')).not.toContainText('Itacoatiara');
   await page.screenshot({path:info.outputPath('tema-escuro.png'),fullPage:true});
   const mobile=page.getByRole('navigation',{name:'Atalhos para celular'});
-  if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Buscar',exact:true}).click();await expect(page).toHaveURL(/#catalogo$/)}else{await expect(mobile).toBeHidden()}
+  if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Início e busca',exact:true}).click();await expect(page).toHaveURL(/#catalogo$/)}else{await expect(mobile).toBeHidden()}
 });
 
 
@@ -266,19 +266,18 @@ test('caminho Anunciar abre diretamente a jornada do vendedor',async({page},info
   }else{
     await page.locator('header a.seller-cta').click();
   }
-  await expect(page).toHaveURL(/#anunciar$/);
+  await expect(page).toHaveURL(/#publicar$/);
   await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
   await expect(page.getByText('Entre ou crie sua conta')).toBeVisible();
   await expect(page.getByRole('button',{name:'Criar conta'})).toBeVisible();
 });
 
-test('pesquisa rápida de eletrônicos abre catálogo filtrado',async({page})=>{
-  await catalog(page,items);await page.goto('/');
-  await page.getByRole('button',{name:'📱 Eletrônicos'}).click();
-  await expect(page).toHaveURL(/#catalogo$/);
-  await expect(page.locator('.filter-feedback')).toContainText('Eletrônicos');
+test('buscar eletrônicos sem menu de categorias',async({page})=>{
+  await catalog(page,[{...items[0],title:'Celular do bairro',category:'Eletrônicos'}]);await page.goto('/');
+  await page.getByRole('searchbox',{name:'Buscar anúncios'}).fill('eletronicos');
+  await expect(page.locator('.listing-card')).toHaveCount(1);
+  await expect(page.locator('.listing-card')).toContainText('Celular do bairro');
 });
-
 
 test('metadados do VENDE+ descrevem o projeto sem inventar ofertas',async({page})=>{
   await catalog(page);await page.goto('/');
