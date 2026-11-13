@@ -66,7 +66,7 @@ export function App(){
   const [condition,setCondition]=useState('Todas');
   const [neighborhood,setNeighborhood]=useState('Todos');
   const [order,setOrder]=useState<'recentes'|'menor'|'maior'>('recentes');
-  const [dark,setDark]=useState(()=>{try{return localStorage.getItem('vendeplus:theme')==='dark'}catch{return false}});
+  const [dark,setDark]=useState(()=>{try{return localStorage.getItem('vendeplus:theme')!=='light'}catch{return true}});
   const [notice,setNotice]=useState('');
   const [dialog,setDialog]=useState<{title:string;content:ReactNode}|null>(null);
   const mainRef=useRef<HTMLElement>(null);
