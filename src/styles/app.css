@@ -415,24 +415,25 @@ summary{cursor:pointer;font-weight:600;font-size:.84rem}
 .app.dark .product-grid{gap:16px}
 .app.dark .listing-card{
   overflow:hidden;
-  border:1px solid #e7e8eb;
+  border:1px solid #343840;
   border-radius:15px;
-  background:#fff;
-  color:#17181c;
+  background:#15171c;
+  color:#f5f5f7;
   box-shadow:0 12px 28px rgba(0,0,0,.2);
 }
-.app.dark .listing-main{color:#17181c}
-.app.dark .listing-image{background:#f2eee9}
-.app.dark .listing-image img{background:#f2eee9;object-fit:cover}
-.app.dark .condition-badge{border-radius:999px;background:rgba(255,255,255,.94);color:#272a31}
-.app.dark .listing-category{color:#777b84}
-.app.dark .listing-body h3{color:#15171c}
+.app.dark .listing-card:hover{border-color:#e53643}
+.app.dark .listing-main{color:#f5f5f7}
+.app.dark .listing-image{background:#101216}
+.app.dark .listing-image img{background:#101216;object-fit:contain}
+.app.dark .condition-badge{border-radius:999px;background:rgba(15,17,22,.94);color:#f5f5f7}
+.app.dark .listing-category{color:#abb0ba}
+.app.dark .listing-body h3{color:#f5f5f7}
 .app.dark .price,
-.app.dark .big-price{color:#e51625}
+.app.dark .big-price{color:#ff3545}
 .app.dark .listing-location,
-.app.dark .listing-body small{color:#686d77}
-.app.dark .listing-action{border-color:#eceef1;color:#d9101e}
-.app.dark .listing-contact{background:#fff}
+.app.dark .listing-body small{color:#aeb2bc}
+.app.dark .listing-action{border-color:#343840;color:#ff5360}
+.app.dark .listing-contact{background:#15171c}
 .app.dark .listing-contact .button{min-height:40px;border-radius:999px;background:#f01423;color:#fff}
 .app.dark .empty-state{background:#15171c;border-color:#343840}
 .app.dark .empty-icon{background:#20232a;color:#ff4b57}
