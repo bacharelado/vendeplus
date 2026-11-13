@@ -7,6 +7,7 @@ import {formatBRL,parseBRL} from '../lib/pricing.mjs';
 import {normalizeWhatsapp} from '../lib/phone.mjs';
 import {createDraftId,readDrafts} from '../lib/drafts.mjs';
 import {listingNotice} from '../lib/listing-notice.mjs';
+import {ROUTES,listingHref,sellerHref,publishDraftHref,publishEditHref} from '../lib/routes.mjs';
 
 type Account={id:string;name:string;email:string;neighborhood:string;role:'seller'|'admin';status:string;whatsapp?:string};
 type Offer={id:number;title:string;description:string;priceCents:number|null;status:string;fulfillment:string;category:string;condition:string;neighborhood?:string;seller?:string;whatsapp?:string;sellerStatus?:string};
@@ -42,7 +43,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  const [selectedPhoto,setSelectedPhoto]=useState<File|null>(initialPhoto);
  const [photoAvailable,setPhotoAvailable]=useState<boolean>();
  useEffect(()=>{let active=true;fetch('/api/media-upload',{cache:'no-store',signal:AbortSignal.timeout(8000)}).then(async response=>{const value=await response.json();if(active)setPhotoAvailable(response.ok&&value.available===true)}).catch(()=>{if(active)setPhotoAvailable(false)});return ()=>{active=false}},[]);
- const [account,setAccount]=useState<Account|null>(null),[loading,setLoading]=useState(true),[register,setRegister]=useState(location.hash==='#cadastro');
+ const [account,setAccount]=useState<Account|null>(null),[loading,setLoading]=useState(true),[register,setRegister]=useState(location.hash===ROUTES.register);
  const [offers,setOffers]=useState<Offer[]>([]),[reports,setReports]=useState<Report[]>([]),[stats,setStats]=useState<Stats|null>(null);
  const [sellers,setSellers]=useState<AdminSeller[]>([]),[allListings,setAllListings]=useState<AdminListing[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
@@ -64,8 +65,8 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  useEffect(()=>{
   if(loading||admin)return;
   if(!account&&(view==='publicar'||view==='area')){
-   try{sessionStorage.setItem('vendeplus:after-login',view==='area'?'#area':'#publicar'+(draftId?'?rascunho='+draftId:editId?'?anuncio='+editId:''))}catch{}
-   location.hash='entrar';
+   try{sessionStorage.setItem('vendeplus:after-login',view==='area'?ROUTES.account:draftId?publishDraftHref(draftId):editId?publishEditHref(editId):ROUTES.publish)}catch{}
+   location.hash=ROUTES.login;
   }else if(account&&view==='entrar'){
    let target='#area';try{const saved=sessionStorage.getItem('vendeplus:after-login');if(saved&&/^(?:#area|#publicar(?:\?(?:rascunho|anuncio)=[a-zA-Z0-9-]+)?)$/.test(saved))target=saved;sessionStorage.removeItem('vendeplus:after-login')}catch{}
    location.hash=target;
@@ -108,7 +109,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
    setLastPublished(result.status==='published'?id:null);setNotice(listingNotice(result.status)+photoNotice);
   });
  };
- const edit=(offer:Offer)=>{location.hash='publicar?anuncio='+offer.id};
+ const edit=(offer:Offer)=>{location.hash=publishEditHref(offer.id)};
  const update=(offer:Offer,status:string)=>void execute(async()=>{const result=await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice(result.warning||(status==='removed'?'Anúncio removido.':'Anúncio atualizado.'))});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
@@ -116,8 +117,8 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  if(loading||!account&&!admin&&(view==='publicar'||view==='area')||account&&(!admin||account.role==='admin')&&readyAccount!==account.id)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
  return <section className="account-area">
   <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do site.':view==='publicar'?(editId?'Editar anúncio.':'Publicar anúncio.'):view==='area'?'Minha área.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':register?'Use nome, e-mail, bairro e WhatsApp para criar sua conta. Depois, adicione o produto e publique.':'Entre para publicar e gerenciar seus anúncios. Quem compra não precisa de conta.'}</p></div>
-  {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<div role="status" className="account-notice"><p>{notice}</p>{lastPublished&&<a className="text-link" href={"#anuncio-"+lastPublished}>Ver meu anúncio na vitrine →</a>}</div>}
-  {view==='publicar'&&<a className="back" href="#area">← Voltar à Minha área</a>}
+  {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<div role="status" className="account-notice"><p>{notice}</p>{lastPublished&&<a className="text-link" href={listingHref(lastPublished)}>Ver meu anúncio na vitrine →</a>}</div>}
+  {view==='publicar'&&<a className="back" href={ROUTES.account}>← Voltar à Minha área</a>}
   {!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
     <div className="auth-switch" aria-label="Escolha como acessar"><Button variant={register?'outline':'primary'} aria-pressed={!register} disabled={busy} onClick={()=>{setRegister(false);setError('')}}>Entrar</Button><Button variant={register?'primary':'outline'} aria-pressed={register} disabled={busy} onClick={()=>{setRegister(true);setError('')}}>Criar conta</Button></div>
     {register&&<p className="auth-purpose">Sua conta permite editar o anúncio, pausar ou marcar como vendido.</p>}
@@ -125,7 +126,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
     <Field label="E-mail"><input name="email" type="email" required maxLength={254} autoComplete="email"/></Field>
     <label>Senha<input name="password" type="password" required minLength={8} maxLength={128} autoComplete={register?'new-password':'current-password'} aria-label="Senha" aria-describedby="password-help"/><span id="password-help" className="field-help">Use de 8 a 128 caracteres.</span></label>
     {register&&<><label>Bairro<select name="neighborhood" required><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label><label>WhatsApp<input name="whatsapp" type="tel" required maxLength={32} placeholder="(92) 99999-9999" autoComplete="tel"/></label><label className="consent"><input type="checkbox" name="acceptContact" required/>Autorizo a divulgação do nome e WhatsApp nos anúncios publicados.</label></>}
-    {!register&&<a className="text-link" href="#entrar?recuperar">Esqueci minha senha</a>}
+    {!register&&<a className="text-link" href={ROUTES.recovery}>Esqueci minha senha</a>}
     <Button disabled={busy} type="submit">{busy?'Aguarde…':register?'Criar minha conta':'Entrar na minha conta'}</Button>
 
    </form>:<>
@@ -145,7 +146,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
     {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">Em verificação</span><h3>{offer.title}</h3><p>{offer.description}</p><p>Vendedor: {offer.seller} · {offer.whatsapp} · {offer.sellerStatus==='approved'?'Contato verificado':'Contato não verificado'}</p><div className="account-toolbar">{offer.sellerStatus==='pending'&&<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Você confirmou que o vendedor controla o WhatsApp?'))void execute(async()=>{await api('moderation/'+offer.id+'/seller','POST',{confirmContact:true});await refresh()})}}>Confirmar vendedor</button>}<button className="button primary" disabled={busy||offer.sellerStatus!=='approved'} onClick={()=>moderate(offer,'published')}>Publicar</button><button className="button outline" disabled={busy} onClick={()=>moderate(offer,'rejected')}>Rejeitar</button></div></article>)}</div>:<p className="account-notice">Nenhuma oferta sinalizada.</p>}
    </>:<>
     <p className="account-notice">{account.status==='suspended'?'Conta suspensa.':account.status==='pending'?'Seu contato ainda não foi confirmado pela administração. Você pode gerenciar seus anúncios, mas não informe aos compradores que seu número foi verificado.':'Seus anúncios aparecem aqui. Você pode editar, pausar ou marcar como vendido.'}</p>
-    {view==='area'&&<div className="account-toolbar"><a className="button primary" href="#publicar">Publicar novo anúncio</a><a className="button outline" href={'#vendedor-'+account.id}>Meu perfil público</a>{account.role==='admin'&&<a className="button outline" href="#admin">Administração</a>}</div>}
+    {view==='area'&&<div className="account-toolbar"><a className="button primary" href={ROUTES.publish}>Publicar novo anúncio</a><a className="button outline" href={sellerHref(account.id)}>Meu perfil público</a>{account.role==='admin'&&<a className="button outline" href={ROUTES.admin}>Administração</a>}</div>}
 
     {view==='publicar'&&showForm&&(!editId||editing)&&<form className="draft-form panel seller-listing-form" onSubmit={submit} key={editing?.id||requestId}>
      <h2>{editing?'Editar anúncio':'Seu anúncio começa aqui'}</h2>
@@ -165,7 +166,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
      <div className="contact-summary"><strong>WhatsApp para receber interessados</strong><span>{account.whatsapp||'O número cadastrado na sua conta'}</span><small>O contato da sua conta acompanha o anúncio automaticamente.</small></div>
      <p className="seller-form-disclaimer">Seu contato aparece no anúncio. Anúncios sinalizados podem precisar de análise. O VENDE+ não recebe pagamentos.</p>
      <div className="publish-actions"><Button type="submit" full disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</Button></div>
-     {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{location.hash='area'}}>Cancelar edição</button>}
+     {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{location.hash=ROUTES.account}}>Cancelar edição</button>}
     </form>}
     {view==='area'&&<><h2>Meus anúncios</h2>
     {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">{statuses[offer.status]||offer.status}</span><h3>{offer.title}</h3><strong>{formatBRL(offer.priceCents)}</strong><p>{offer.description}</p><p>{offer.fulfillment}</p><div className="account-toolbar"><button className="button outline" onClick={()=>edit(offer)} disabled={busy}>Editar</button>{offer.status==='published'&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'paused')}>Pausar</button>}{offer.status==='paused'&&<button className="button primary" disabled={busy} onClick={()=>update(offer,'published')}>Reativar</button>}{['published','paused'].includes(offer.status)&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'sold')}>Marcar vendido</button>}<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Remover este anúncio?'))update(offer,'removed')}}>Remover</button></div></article>)}</div>:<p className="account-notice">Você ainda não publicou nenhum anúncio.</p>}
