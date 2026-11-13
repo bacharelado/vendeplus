@@ -158,8 +158,13 @@ test('todas as páginas cabem em 320 px e na largura do perfil',async({page},inf
   expect(errors).toEqual([]);
 });
 
-test('tema persiste e navegação mobile funciona',async({page},info)=>{
-  await catalog(page);await page.goto('/');await page.getByRole('button',{name:'Alternar tema'}).click();await page.reload();await expect(page.locator('.app')).toHaveClass(/dark/);
+test('tema escuro padrão persiste e navegação mobile funciona',async({page},info)=>{
+  await catalog(page);await page.goto('/');
+  await expect(page.locator('.app')).toHaveClass(/dark/);
+  await page.getByRole('button',{name:'Alternar tema'}).click();await page.reload();
+  await expect(page.locator('.app')).not.toHaveClass(/dark/);
+  await page.getByRole('button',{name:'Alternar tema'}).click();await page.reload();
+  await expect(page.locator('.app')).toHaveClass(/dark/);
   await page.screenshot({path:info.outputPath('tema-escuro.png'),fullPage:true});
   const mobile=page.getByRole('navigation',{name:'Atalhos para celular'});
   if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Buscar',exact:true}).click();await expect(page).toHaveURL(/#catalogo$/)}else{await expect(mobile).toBeHidden()}
