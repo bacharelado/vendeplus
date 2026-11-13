@@ -68,16 +68,16 @@ test('anúncios usam cartão escuro e texto legível mesmo em tela grande',async
   await expect(card.locator('.listing-image')).toHaveCSS('background-color','rgb(16, 18, 22)');
 });
 
-test('busca inicial e categorias abrem o catálogo filtrado',async({page})=>{
+test('busca por categoria e limpar pesquisa',async({page})=>{
   await catalog(page,items);await page.goto('/');
-  await page.getByRole('textbox',{name:'Pesquisar no bairro'}).fill('Mesa');
-  await page.getByRole('button',{name:'Buscar',exact:true}).click();
-  await expect(page.getByRole('textbox',{name:'Buscar anúncios'})).toHaveValue('Mesa');
-  await expect(page.locator('.listing-card')).toHaveCount(1);
-  await page.getByRole('link',{name:'VENDE+ início'}).click();
-  await page.locator('.category-grid').getByRole('button',{name:'Serviços',exact:true}).click();
+  const search=page.getByRole('searchbox',{name:'Buscar anúncios'});
+  await search.fill('servicos');
   await expect(page.locator('.listing-card')).toHaveCount(1);
   await expect(page.locator('.listing-card')).toContainText('Serviço de teste');
+  await search.fill('sem resultado');
+  await expect(page.getByRole('heading',{name:/Nenhum resultado/})).toBeVisible();
+  await page.getByRole('button',{name:'Ver todos os anúncios'}).click();
+  await expect(page.locator('.listing-card')).toHaveCount(2);
 });
 
 test('rascunho persiste após recarregar e não vira oferta pública',async({page})=>{
