@@ -500,3 +500,27 @@ summary{cursor:pointer;font-weight:600;font-size:.84rem}
   .app.dark .listing-body h3{font-size:.88rem}
   .app.dark .price{font-size:1.15rem}
 }
+
+
+/* Vitrine direta: sem banner de abertura, categorias ou bloco de filtros. */
+.app.dark .simple-market{padding-top:0}
+.app.dark .simple-market-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.app.dark .simple-market-heading h1{margin:0;font-size:clamp(1.35rem,2.5vw,1.95rem);letter-spacing:-.04em;color:#fff}
+.app.dark .simple-market-count{flex:none;font-size:.72rem;color:#bdc1cb;background:#20232b;border-radius:8px;padding:7px 10px}
+.app.dark .simple-market-search{display:flex;align-items:center;gap:9px;max-width:720px;min-height:52px;padding:3px 8px 3px 14px;margin-bottom:18px;border:1px solid #3a3e48;border-radius:13px;background:#1b1e25;transition:border-color .15s,box-shadow .15s}
+.app.dark .simple-market-search:focus-within{border-color:#ff4b5b;box-shadow:0 0 0 2px rgba(241,19,34,.15)}
+.app.dark .simple-market-search>.icon{width:20px;height:20px;color:#ff4b5b}
+.app.dark .simple-market-search input[type=search]{display:block;flex:1;min-width:0;width:100%;height:44px;min-height:44px;margin:0;padding:8px 4px;border:0;border-radius:0;background:transparent;color:#f5f5f7;font-size:16px;box-shadow:none;outline:0}
+.app.dark .simple-market-search input[type=search]::placeholder{color:#a6aab4}
+.app.dark .simple-market-search input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
+.app.dark .simple-market-search button{display:grid;place-items:center;flex:none;width:40px;height:40px;border:0;border-radius:9px;background:#2b2e36;color:#e5e7eb}
+.app.dark .simple-market-search button:hover{background:#3a3e47}
+.app.dark .simple-market-search button:focus-visible{outline:2px solid #ff4b5b;outline-offset:2px}
+.app.dark .simple-market-search button .icon{width:18px;height:18px}
+.app.dark .simple-market .product-grid{margin-top:0}
+@media(max-width:760px){
+ .app.dark .simple-market-heading{margin-bottom:12px}
+ .app.dark .simple-market-heading h1{font-size:1.3rem}
+ .app.dark .simple-market-search{max-width:none;min-height:50px;margin-bottom:14px}
+ .app.dark .simple-market-count{font-size:.68rem}
+}
