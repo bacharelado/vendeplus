@@ -14,15 +14,16 @@ on:
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
 
 jobs:
   navegador:
-    name: Playwright — computador e celular
+    name: Playwright — prévia Cloudflare, computador e celular
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       CI: 'true'
-      PLAYWRIGHT_BASE_URL: ${{ inputs.target_url }}
     steps:
       - name: Baixar código do VENDE+
         uses: actions/checkout@v4
@@ -39,17 +40,212 @@ jobs:
       - name: Instalar Chromium de testes
         run: npx playwright install --with-deps chromium
 
-      - name: Validar URL de auditoria externa (se informada)
+      - name: Localizar prévia publicada pela Cloudflare
+        id: cloudflare-preview
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr?.number || !pr?.head?.sha) {
+              core.setFailed('Não foi possível identificar o PR e seu commit.');
+              return;
+            }
+
+            const expectedSha = pr.head.sha.toLowerCase();
+            const deadline = Date.now() + 12 * 60 * 1000;
+            const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            while (Date.now() < deadline) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                per_page: 100
+              });
+
+              const cloudflareComments = comments
+                .filter(comment => comment.user?.login === 'cloudflare-workers-and-pages[bot]')
+                .reverse();
+
+              for (const comment of cloudflareComments) {
+                const body = comment.body || '';
+                const commitMatch = body.match(/Latest commit:[\s\S]*?<code>([a-f0-9]{7,40})<\/code>/i);
+                const previewMatch = body.match(/Branch Preview URL:[\s\S]*?<a[^>]+href=['"]([^'"]+)['"]/i);
+
+                if (!commitMatch || !previewMatch) continue;
+
+                let deployedSha = commitMatch[1].toLowerCase();
+                let exactCommit = expectedSha.startsWith(deployedSha);
+
+                if (!exactCommit) {
+                  try {
+                    const deployedCommit = await github.rest.repos.getCommit({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: deployedSha
+                    });
+                    deployedSha = deployedCommit.data.sha;
+                    const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      basehead: deployedSha + '...' + expectedSha
+                    });
+                    const changedFiles = comparison.data.files || [];
+                    const ciOnly = comparison.data.status === 'identical'
+                      || (comparison.data.status === 'ahead'
+                        && changedFiles.length > 0
+                        && changedFiles.every(file =>
+                          file.filename.startsWith('.github/workflows/')
+                          || file.filename.startsWith('scripts/')
+                          || file.filename.startsWith('tests/')
+                          || file.filename.startsWith('docs/')
+                          || ['README.md', 'CHANGELOG.md'].includes(file.filename)
+                        ));
+                    if (!ciOnly) continue;
+                    core.info('Reutilizando deploy ' + deployedSha.slice(0, 7) + ': desde ele, somente arquivos de CI/testes/documentação mudaram.');
+                  } catch {
+                    continue;
+                  }
+                }
+
+                let preview;
+                try {
+                  preview = new URL(previewMatch[1]);
+                } catch {
+                  continue;
+                }
+
+                const allowedHost = preview.hostname === 'vendeplus.pages.dev'
+                  || preview.hostname.endsWith('.vendeplus.pages.dev');
+
+                if (preview.protocol !== 'https:' || !allowedHost || preview.username || preview.password) {
+                  core.setFailed('A Cloudflare publicou uma URL fora do domínio autorizado do VENDE+.');
+                  return;
+                }
+
+                core.setOutput('url', preview.origin);
+                core.info((exactCommit ? 'Prévia do commit atual: ' : 'Prévia compatível com o código atual: ') + preview.origin);
+                return;
+              }
+
+              core.info('Aguardando o deploy da Cloudflare para o commit ' + expectedSha.slice(0, 7) + '...');
+              await pause(15000);
+            }
+
+            core.setFailed('A Cloudflare não publicou uma prévia correspondente ao commit atual dentro de 12 minutos.');
+
+      - name: Definir URL que será auditada
+        id: target
+        env:
+          MANUAL_TARGET_URL: ${{ inputs.target_url }}
+          CLOUDFLARE_PREVIEW_URL: ${{ steps.cloudflare-preview.outputs.url }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ -n "$PLAYWRIGHT_BASE_URL" ]; then
-            case "$PLAYWRIGHT_BASE_URL" in
-              https://vendeplus.pages.dev|https://*.vendeplus.pages.dev) ;;
-              *) echo "Permitido somente Cloudflare Pages do VENDE+"; exit 1;;
-            esac
+          if [ -n "$MANUAL_TARGET_URL" ]; then
+            TARGET_URL="$MANUAL_TARGET_URL"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            TARGET_URL="$CLOUDFLARE_PREVIEW_URL"
+            if [ -z "$TARGET_URL" ]; then
+              echo "Falha: PR sem prévia Cloudflare confirmada. Não será testado localhost."
+              exit 1
+            fi
+          else
+            TARGET_URL=""
           fi
+
+          echo "PLAYWRIGHT_BASE_URL=$TARGET_URL" >> "$GITHUB_ENV"
+          echo "url=$TARGET_URL" >> "$GITHUB_OUTPUT"
+          if [ -n "$TARGET_URL" ]; then
+            echo "Auditoria direcionada para: $TARGET_URL"
+          else
+            echo "Sem URL externa: execução local permitida apenas fora de pull_request."
+          fi
+
+      - name: Validar domínio da URL de auditoria
+        run: |
+          node --input-type=module <<'NODE'
+          const raw = process.env.PLAYWRIGHT_BASE_URL;
+          if (!raw) process.exit(0);
+
+          const url = new URL(raw);
+          const allowed = url.hostname === 'vendeplus.pages.dev'
+            || url.hostname.endsWith('.vendeplus.pages.dev');
+
+          if (url.protocol !== 'https:' || !allowed || url.username || url.password) {
+            throw new Error('Permitido somente HTTPS no domínio vendeplus.pages.dev.');
+          }
+
+          console.log('Domínio autorizado:', url.origin);
+          NODE
+
+      - name: Validar headers e respostas HTTP da prévia
+        if: steps.target.outputs.url != ''
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+
+          const base = process.env.PLAYWRIGHT_BASE_URL.replace(/\/+$/, '');
+          const requiredHeaders = {
+            'content-security-policy': value => value.includes("default-src 'self'") && value.includes("frame-ancestors 'none'"),
+            'strict-transport-security': value => value.includes('max-age=31536000'),
+            'x-frame-options': value => value.toUpperCase() === 'DENY',
+            'x-content-type-options': value => value.toLowerCase() === 'nosniff',
+            'referrer-policy': value => value === 'strict-origin-when-cross-origin',
+            'permissions-policy': value => value.includes('camera=()') && value.includes('microphone=()')
+          };
+
+          async function checkHeaders(response, label) {
+            for (const [name, validate] of Object.entries(requiredHeaders)) {
+              const value = response.headers.get(name);
+              assert.ok(value && validate(value), label + ': header ausente ou inválido: ' + name);
+            }
+          }
+
+          console.log('1/3 — Verificando página inicial');
+          const home = await fetch(base + '/', {redirect: 'follow'});
+          assert.equal(home.status, 200, 'A página inicial deve retornar HTTP 200');
+          await checkHeaders(home, 'Página inicial');
+
+          console.log('2/3 — Verificando sessão sem autenticação');
+          const session = await fetch(base + '/api/account/session', {
+            headers: {
+              Origin: base,
+              'Sec-Fetch-Site': 'same-origin'
+            },
+            redirect: 'follow'
+          });
+          assert.equal(session.status, 200, 'A sessão anônima deve retornar HTTP 200');
+          await checkHeaders(session, 'API de sessão');
+          assert.match(session.headers.get('cache-control') || '', /no-store/i, 'A sessão deve usar Cache-Control: no-store');
+          const sessionBody = await session.json();
+          assert.equal(sessionBody.account, null, 'A sessão de auditoria deve permanecer sem autenticação');
+
+          console.log('3/3 — Verificando caminhos reservados inexistentes');
+          for (const path of ['/.env', '/.git/config', '/package.json', '/vite.config.ts', '/schema.sql']) {
+            const response = await fetch(base + path, {redirect: 'manual'});
+            assert.equal(response.status, 404, path + ' deve retornar HTTP 404, não a SPA');
+            await checkHeaders(response, path);
+            console.log('HTTP 404 confirmado:', path);
+          }
+
+          console.log('Prévia aprovada nos testes HTTP de headers, sessão e 404.');
+          NODE
+
+      - name: Validar sintaxe do teste IDOR real
+        if: steps.target.outputs.url != ''
+        run: node --check scripts/preview-idor-live.mjs
 
       - name: Testar interface, anúncios e experiência mobile
         run: npx playwright test
+
+      - name: Testar isolamento real entre duas contas na prévia
+        if: always() && steps.target.outputs.url != ''
+        timeout-minutes: 10
+        env:
+          PREVIEW_URL: ${{ steps.target.outputs.url }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/preview-idor-live.mjs
 
       - name: Guardar prints, gravações e relatório de erros
         if: always()
@@ -61,4 +257,3 @@ jobs:
             test-results/
           retention-days: 7
           if-no-files-found: warn
-
