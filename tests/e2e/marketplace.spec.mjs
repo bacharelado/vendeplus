@@ -455,12 +455,14 @@ test('foto pode ser reenviada após falha sem criar outro anúncio',async({page}
 
 test('perfil com falha permite tentar novamente e trocar de vendedor limpa dados anteriores',async({page})=>{
  await catalog(page);
- const first='00000000-0000-4000-8000-000000000001',second='00000000-0000-4000-8000-000000000002';let calls=0;
+ const first='00000000-0000-4000-8000-000000000001',second='00000000-0000-4000-8000-000000000002';let failing=true;
  await page.route('**/api/sellers/'+first,route=>{
-  calls++;return route.fulfill({status:calls===1?503:200,contentType:'application/json',body:calls===1?'{}':JSON.stringify({seller:{id:first,name:'Primeira loja',neighborhood:'Poranga I',bio:''},listings:[]})});
+  return route.fulfill({status:failing?503:200,contentType:'application/json',body:failing?'{}':JSON.stringify({seller:{id:first,name:'Primeira loja',neighborhood:'Poranga I',bio:''},listings:[]})});
  });
  await page.route('**/api/sellers/'+second,route=>route.fulfill({status:503,contentType:'application/json',body:'{}'}));
  await page.goto('/#vendedor-'+first);
+ await expect(page.getByText('Não foi possível carregar este perfil.',{exact:true})).toBeVisible();
+ failing=false;
  await page.getByRole('button',{name:'Tentar novamente',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Primeira loja',exact:true})).toBeVisible();
  await page.evaluate(hash=>{location.hash=hash},'#vendedor-'+second);
