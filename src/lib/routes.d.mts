@@ -8,6 +8,7 @@ export interface Route {
   section?: string;
   recover?: boolean;
   resetToken?: string;
+  register?: boolean;
 }
 export const ROUTES: Readonly<{
   home: string; catalog: string; howItWorks: string;

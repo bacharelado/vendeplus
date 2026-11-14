@@ -1,10 +1,38 @@
-# Condições de segurança antes de produção
+# Segurança do VENDE+
 
-- Não confiar em validação de navegador ou classificação simples por palavras.
-- Exigir sessão e autorização no servidor para criar, editar e retirar anúncios; testes de propriedade (IDOR).
-- RLS por tabela e políticas de leitura mínima; preservar denúncias mesmo com exclusão lógica de anúncios.
-- Verificação manual do WhatsApp comercial antes do primeiro anúncio público.
-- Fluxos de denúncia, contestação, auditoria e bloqueio emergencial com autenticação MFA de administradores.
-- Uploads em armazenamento privado temporário, validação do arquivo real, recodificação e remoção de metadados.
-- Cotas de requisição, proteção contra spam e abuso, HTTPS, política de retenção e recuperação de backup testada.
-- Política de Privacidade e Termos de Uso adequados ao Brasil e à LGPD; não prometer compras seguras ou vendedores verificados.
+## Controles implementados
+
+- Senhas com scrypt e sal individual; sessão aleatória com token armazenado por hash. Cookies `__Host-`, `HttpOnly`, `Secure` e `SameSite=Lax`.
+- Escritas exigem origem do próprio site. JSON é validado por tipo, tamanho em bytes e leitura limitada do fluxo, mesmo sem `Content-Length`.
+- Consultas SQL parametrizadas e autorização por proprietário no servidor. O vendedor não pode escolher permissões ou o proprietário de um anúncio.
+- Edições usam comparação de status para não desfazer remoção, rejeição ou pausa concorrente. As alterações e os eventos são agrupados no D1.
+- CSP sem scripts inline ou `eval`, proibição de enquadramento, HSTS em HTTPS, `nosniff` e restrição de câmera, microfone e geolocalização. O frame externo autorizado é o Google Drive usado pelo vídeo.
+- Respostas das APIs e erros não ficam em cache. Caminhos inexistentes têm HTTP 404; APIs inexistentes retornam JSON.
+- Upload autenticado, validação e reprocessamento da imagem, cotas e verificação de propriedade. A entrega depende de anúncio publicado e vendedor não suspenso.
+- Limites persistentes para autenticação, publicação, recuperação, fotos e denúncias. Denúncias inválidas não entram na fila e a leitura de corpos excessivos é interrompida.
+- Alteração de senha encerra as outras sessões. A recuperação por e-mail só se apresenta como disponível quando o serviço e a tabela estão configurados.
+
+## Verificação
+
+```bash
+npm ci
+npm test
+python3 tests/schema_test.py
+npm audit --audit-level=moderate
+npm run build
+npm run test:e2e
+node scripts/smoke-http.mjs https://vendeplus.pages.dev/
+```
+
+Os testes Node usam bancos SQLite isolados, incluindo isolamento entre duas contas e disputas entre edição e moderação. Os testes Playwright usam APIs simuladas para validar a interface em computador e celular. O smoke HTTP só lê a publicação online. Nenhum desses resultados substitui uma auditoria completa ou prova ausência de vulnerabilidades.
+
+## Limites que exigem trabalho operacional
+
+- Ativar o remetente verificado e o envio de e-mails para recuperação de senha. Não usar recuperação por nome, telefone informado ou acesso direto ao banco como atalho.
+- Fortalecer a autenticação administrativa com um segundo fator e uma política de recuperação adequada. O login atual não possui MFA próprio.
+- Verificar controle de WhatsApp: contas `pending` podem publicar anúncios comuns, e o produto não deve afirmar que esse contato foi verificado.
+- Manter tratamento de denúncias, contestação, retenção/exclusão de dados, termos e política de privacidade definidos para a operação.
+- Testar backup/restauração, carga, limites de infraestrutura e alertas de custo. As cotas do código não substituem os limites do provedor.
+- A busca e a ordenação da interface consideram as páginas carregadas, com aviso quando há mais resultados. Busca global e indexação por anúncio exigem evolução da arquitetura.
+
+Referências: [Cloudflare Pages e respostas 404](https://developers.cloudflare.com/pages/configuration/serving-pages/), [headers em Functions](https://developers.cloudflare.com/pages/configuration/headers/) e [CSP da OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html).

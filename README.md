@@ -62,6 +62,7 @@ npm test
 python3 tests/schema_test.py
 npm run build
 npm run test:e2e
+node scripts/smoke-http.mjs https://vendeplus.pages.dev/
 ```
 
 Os testes devem evitar alterações em contas/anúncios reais. Testes de integração utilizam contas e identificadores técnicos, com limpeza dos registros temporários.
@@ -70,6 +71,8 @@ Os testes devem evitar alterações em contas/anúncios reais. Testes de integra
 
 - Senhas armazenadas com scrypt e sal individual; sessões aleatórias em cookies `HttpOnly`, `Secure` e `SameSite=Lax`.
 - APIs de escrita verificam sessão, origem, propriedade do anúncio, tamanho dos pedidos e limites de requisição.
+- Middleware global aplica CSP, HSTS em HTTPS, proteção contra enquadramento e respostas sem cache para as APIs. Caminhos inexistentes respondem com HTTP 404.
+- A vitrine permite combinar busca, categoria e bairro e ordenar as páginas carregadas por preço ou data. O vídeo externo só carrega depois do toque.
 - O upload exige imagem válida, reprocessamento no servidor e controle de cotas; a imagem do anúncio pode ser removida quando deixar de estar referenciada.
 - Anúncios comuns podem ser publicados automaticamente; um filtro simples sinaliza alguns conteúdos para revisão. **Isso não é verificação de vendedor, certificação antifraude ou garantia de negociação.**
 - Cotas do piloto de Cloudinary: 10 tentativas a cada 15 minutos; 15 novos uploads por conta e 200 uploads globais a cada 30 dias. O uso de banda também gera consumo e deve ser acompanhado.

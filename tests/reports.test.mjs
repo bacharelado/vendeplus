@@ -33,3 +33,15 @@ test('limita tentativas de denúncia para impedir abuso automático',async()=>{
  const {send}=setup();for(let i=0;i<10;i++)assert.equal((await send()).status,201);
  assert.equal((await send()).status,429);
 });
+test('JSON inválido, arrays e denúncias de vendedor suspenso não entram na fila',async()=>{
+ const {sqlite,db,id,send}=setup();
+ try{
+  for(const body of ['{','null','[]',JSON.stringify({listingId:id,reason:['spam']})]){
+   const response=await onRequest({request:new Request('https://preview.vendeplus.pages.dev/api/reports',{method:'POST',headers:{Origin:'https://preview.vendeplus.pages.dev','Content-Type':'application/json'},body}),env:{MARKETPLACE_DB:db}});
+   assert.equal(response.status,400);
+  }
+  sqlite.prepare("UPDATE marketplace_sellers SET status='suspended'").run();
+  assert.equal((await send()).status,404);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM marketplace_reports').get().n,0);
+ }finally{sqlite.close()}
+});

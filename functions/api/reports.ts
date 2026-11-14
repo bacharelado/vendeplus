@@ -1,17 +1,15 @@
 import {createHash} from 'node:crypto';
+import {readJson,RequestFailure} from '../_shared/http.ts';
 type DB={prepare:(sql:string)=>{bind:(...args:unknown[])=>{first:()=>Promise<Record<string,unknown>|null>;run:()=>Promise<unknown>}}};
 export async function onRequest({request,env}:{request:Request;env:{MARKETPLACE_DB?:DB}}){
  if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'POST'}});
  if(!env.MARKETPLACE_DB)return Response.json({error:'Indisponível'},{status:503});
- if(request.headers.get('Origin')!==new URL(request.url).origin||request.headers.get('Content-Type')?.split(';')[0]!=='application/json')return Response.json({error:'Solicitação inválida'},{status:403});
- if(Number(request.headers.get('Content-Length')||0)>2048)return Response.json({error:'Solicitação muito grande'},{status:413});
  try{
-  const raw=await request.text();if(raw.length>2048)return Response.json({error:'Solicitação muito grande'},{status:413});
-  const data=JSON.parse(raw);
+  const data=await readJson(request,2048);
   const listingId=data.listingId,reason=data.reason,details=typeof data.details==='string'?data.details.trim():'';
-  if(!Number.isSafeInteger(listingId)||listingId<=0||!['spam','fraud','prohibited','other'].includes(reason)||details.length>500)return Response.json({error:'Dados inválidos'},{status:400});
+  if(!Number.isSafeInteger(listingId)||Number(listingId)<=0||typeof reason!=='string'||!['spam','fraud','prohibited','other'].includes(reason)||(data.details!==undefined&&typeof data.details!=='string')||details.length>500)return Response.json({error:'Dados inválidos'},{status:400});
   const db=env.MARKETPLACE_DB;
-  const listing=await db.prepare("SELECT id FROM marketplace_listings WHERE id=? AND status='published'").bind(listingId).first();
+  const listing=await db.prepare("SELECT l.id FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.id=? AND l.status='published' AND s.status!='suspended'").bind(listingId).first();
   if(!listing)return Response.json({error:'Anúncio indisponível'},{status:404});
   const now=Math.floor(Date.now()/1000);
   const ip=request.headers.get('CF-Connecting-IP')||'unknown';
@@ -20,5 +18,5 @@ export async function onRequest({request,env}:{request:Request;env:{MARKETPLACE_
   if(Number(rate?.attempts)>10)return Response.json({error:'Limite de denúncias atingido'},{status:429});
   await db.prepare("INSERT OR IGNORE INTO marketplace_reports(listing_id,reporter_hash,reason,details) VALUES (?,?,?,?)").bind(listingId,hashed,reason,details).run();
   return Response.json({ok:true},{status:201,headers:{'Cache-Control':'no-store'}});
- }catch{return Response.json({error:'Não foi possível registrar a denúncia'},{status:503})}
+ }catch(error){return error instanceof RequestFailure?Response.json({error:error.message},{status:error.status}):Response.json({error:'Não foi possível registrar a denúncia'},{status:503})}
 }
