@@ -27,7 +27,7 @@ Produto da APOCALYPTIC para aproximar compradores e vendedores de Poranga I, Por
 - `#inicio`: vitrine, busca e categorias; `#catalogo` abre a seção de anúncios.
 - `#anuncio-ID`: detalhes do anúncio e contato pelo WhatsApp.
 - `#vendedor-ID`: perfil público do vendedor.
-- `#entrar`: login, cadastro e recuperação de senha.
+- `#entrar`: login, cadastro e contato de suporte pelo WhatsApp para recuperar acesso.
 - `#area`: anúncios da conta, rascunhos existentes, perfil e segurança.
 - `#publicar`: formulário de publicação; aceita `?anuncio=ID` ou `?rascunho=ID` para edição.
 - `#admin`: administração com autenticação e perfil autorizado.
@@ -79,7 +79,7 @@ Os testes devem evitar alterações em contas/anúncios reais. Testes de integra
 
 ## Pendências abertas
 
-1. Recuperação segura de senha por canal confiável, sem atalhos que permitam tomada de conta.
+1. Ferramenta segura de redefinição para pedidos recebidos no WhatsApp, com verificação de titularidade e auditoria; o contato já está disponível no login.
 2. Verificação do controle do telefone/WhatsApp e política adequada para o estado de vendedor pendente.
 3. Termos, política de privacidade, retenção e exclusão de dados em conformidade com as exigências aplicáveis.
 4. Tratamento de denúncias, recurso de contestação, limites de abuso e autenticação forte para administração.

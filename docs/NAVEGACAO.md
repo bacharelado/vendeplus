@@ -20,8 +20,8 @@ O VENDE+ tem **sete tipos de página**, não dezoito páginas independentes. Os 
 - `#cadastro` abre a entrada já no modo de cadastro.
 - `#anunciar` leva à publicação.
 - `#editar-ID` abre um rascunho antigo no formulário atual.
-- `#entrar?recuperar` abre o pedido de recuperação de senha.
-- `#entrar?redefinir=TOKEN` abre a redefinição com o token do e-mail.
+- O login oferece contato direto com o suporte no WhatsApp.
+- `#entrar?recuperar` e `#entrar?redefinir=TOKEN` continuam abrindo a orientação de atendimento pelo WhatsApp; o token antigo é descartado.
 - `#publicar?rascunho=ID` e `#publicar?anuncio=ID` recuperam o item correspondente no formulário único.
 
 Não remover nem redirecionar para links diferentes sem manter a compatibilidade: usuários podem ter anúncios e perfis compartilhados no WhatsApp. A aplicação usa URLs com `#`, evitando regras adicionais de reescrita no Cloudflare Pages.

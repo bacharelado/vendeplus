@@ -8,6 +8,7 @@ import {normalizeWhatsapp} from '../lib/phone.mjs';
 import {createDraftId,readDrafts} from '../lib/drafts.mjs';
 import {listingNotice} from '../lib/listing-notice.mjs';
 import {ROUTES,listingHref,sellerHref,publishDraftHref,publishEditHref} from '../lib/routes.mjs';
+import {SUPPORT_WHATSAPP_URL} from '../lib/support.mjs';
 
 type Account={id:string;name:string;email:string;neighborhood:string;role:'seller'|'admin';status:string;whatsapp?:string};
 type Offer={id:number;title:string;description:string;priceCents:number|null;status:string;fulfillment:string;category:string;condition:string;neighborhood?:string;seller?:string;whatsapp?:string;sellerStatus?:string};
@@ -136,7 +137,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
     <Field label="E-mail"><input name="email" type="email" required maxLength={254} autoComplete="email"/></Field>
     <label>Senha<input name="password" type="password" required minLength={8} maxLength={128} autoComplete={register?'new-password':'current-password'} aria-label="Senha" aria-describedby="password-help"/><span id="password-help" className="field-help">Use de 8 a 128 caracteres.</span></label>
     {register&&<><label>Bairro<select name="neighborhood" required><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label><label>WhatsApp<input name="whatsapp" type="tel" required maxLength={32} placeholder="(92) 99999-9999" autoComplete="tel"/></label><label className="consent"><input type="checkbox" name="acceptContact" required/>Autorizo a divulgação do nome e WhatsApp nos anúncios publicados.</label></>}
-    {!register&&<a className="text-link" href={ROUTES.recovery}>Esqueci minha senha</a>}
+    {!register&&<a className="text-link" href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer">Precisa de ajuda para entrar? Fale no WhatsApp</a>}
     <Button disabled={busy} type="submit">{busy?'Aguarde…':register?'Criar minha conta':'Entrar na minha conta'}</Button>
 
    </form>:<>

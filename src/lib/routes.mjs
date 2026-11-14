@@ -28,7 +28,7 @@ const validId = value => /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number
 export function readRoute(rawHash = '') {
   const hash = String(rawHash).replace(/^#/, '') || 'inicio';
   if (hash === 'entrar?recuperar') return {name:'entrar',recover:true};
-  if (hash.startsWith('entrar?redefinir=')) return {name:'entrar',recover:true,resetToken:hash.slice('entrar?redefinir='.length)};
+  if (hash.startsWith('entrar?redefinir=')) return {name:'entrar',recover:true};
   const listing = /^anuncio-(\d+)$/.exec(hash);
   if (listing) return validId(listing[1])?{name:'anuncio',id:Number(listing[1])}:{name:'indisponivel'};
   const seller = /^vendedor-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.exec(hash);

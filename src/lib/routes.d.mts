@@ -7,7 +7,6 @@ export interface Route {
   editId?: number;
   section?: string;
   recover?: boolean;
-  resetToken?: string;
   register?: boolean;
 }
 export const ROUTES: Readonly<{

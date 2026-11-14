@@ -478,3 +478,31 @@ test('trocar o endereço entre entrar e cadastro exibe o formulário correto',as
  await page.evaluate(()=>{location.hash='#entrar'});
  await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
 });
+
+test('login oferece suporte direto no WhatsApp sem formulário de recuperação por e-mail',async({page})=>{
+ await catalog(page);await page.goto('/#entrar');
+ const support=page.getByRole('link',{name:'Precisa de ajuda para entrar? Fale no WhatsApp',exact:true});
+ await expect(support).toHaveAttribute('href',/^https:\/\/wa.me\/559281660856\?text=/);
+ await expect(support).toHaveAttribute('target','_blank');
+ await expect(support).toHaveAttribute('rel','noopener noreferrer');
+ const url=new URL(await support.getAttribute('href'));
+ expect(url.searchParams.get('text')).toBe('Olá! Preciso de ajuda para recuperar o acesso à minha conta no VENDE+.');
+ await expect(page.getByRole('link',{name:'Esqueci minha senha',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Enviar link de recuperação'})).toHaveCount(0);
+});
+
+test('links antigos encaminham ao atendimento sem guardar ou enviar tokens',async({page})=>{
+ await catalog(page);let resetCalls=0;
+ await page.route('**/api/account/password-reset/**',route=>{resetCalls++;return route.fulfill({status:410,contentType:'application/json',body:'{}'})});
+ const token='a'.repeat(64);
+ for(const hash of ['#entrar?recuperar','#entrar?redefinir='+token]){
+  await page.goto('/'+hash);
+  await expect(page.getByRole('heading',{name:'Precisa de ajuda para entrar?',exact:true})).toBeVisible();
+  await expect(page).toHaveURL(/#entrar\?recuperar$/);
+  const support=page.getByRole('link',{name:'Falar com o suporte no WhatsApp',exact:true});
+  await expect(support).toHaveAttribute('href',/^https:\/\/wa.me\/559281660856\?text=/);
+  expect(await support.getAttribute('href')).not.toContain(token);
+  await expect(page.locator('main input')).toHaveCount(0);
+ }
+ expect(resetCalls).toBe(0);
+});

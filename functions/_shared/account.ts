@@ -1,6 +1,6 @@
 import {normalizeWhatsapp} from '../../src/lib/phone.mjs';
 import {randomBytes,scrypt,timingSafeEqual,createHash} from 'node:crypto';
-import {handlePasswordReset,type PasswordResetEnv} from './password-reset.ts';
+import {handlePasswordReset} from './password-reset.ts';
 import {moderateOffer} from './moderation.ts';
 import {removeListingPhoto,type PhotoEnv} from './photo-cleanup.ts';
 import {readJson,RequestFailure as Failure} from './http.ts';
@@ -8,7 +8,7 @@ import {readJson,RequestFailure as Failure} from './http.ts';
 type Row=Record<string,unknown>;
 type Statement={bind:(...values:unknown[])=>Statement;first:()=>Promise<Row|null>;all:()=>Promise<{results:Row[]}>;run:()=>Promise<{meta:{changes:number}}>};
 export type Database={prepare:(query:string)=>Statement;batch:(statements:Statement[])=>Promise<unknown[]>};
-type Context={request:Request;env:PhotoEnv&PasswordResetEnv&{MARKETPLACE_DB?:Database};waitUntil?:(task:Promise<unknown>)=>void};
+type Context={request:Request;env:PhotoEnv&{MARKETPLACE_DB?:Database};waitUntil?:(task:Promise<unknown>)=>void};
 const neighborhoods=['Poranga I','Poranga II','Jacarezinho'];
 const categories=['Alimentação','Moda','Eletrônicos','Casa','Beleza','Serviços'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -39,12 +39,13 @@ function listingData(data:Row){
 }
 export async function handleAccount(context:Context){
  const {request,env}=context;
+ const path=new URL(request.url).pathname.replace(/\/$/,'').replace('/api/account','');
+ if(path==='/password-reset'||path.startsWith('/password-reset/'))return handlePasswordReset({request,path});
  if(!env.MARKETPLACE_DB)return reply({error:'Serviço temporariamente indisponível.'},503);
- const db=env.MARKETPLACE_DB,path=new URL(request.url).pathname.replace(/\/$/,'').replace('/api/account','');
+ const db=env.MARKETPLACE_DB;
  try{
   if(!['GET','POST','PATCH'].includes(request.method))return reply({error:'Método não permitido.'},405,{Allow:'GET, POST, PATCH'});
   const data=request.method==='GET'?{}:await readJson(request);
-  if(path.startsWith('/password-reset/'))return await handlePasswordReset({db,env,request,path,data,waitUntil:context.waitUntil?.bind(context),hashPassword:passwordHash,rate});
   if(path==='/session'&&request.method==='GET')return reply({account:await session(db,request)});
   if((path==='/register'||path==='/login')&&request.method==='POST'){
    const email=text(data.email,5,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Failure('Informe um e-mail válido.');
