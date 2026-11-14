@@ -1,4 +1,4 @@
-import {useEffect,useState,type FormEvent} from 'react';
+import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {PhotoPicker} from './PhotoAssistant';
 import {Button,Field} from './UI';
 import {DraftList} from './DraftList';
@@ -37,6 +37,13 @@ async function preparePhoto(file:File):Promise<Blob>{
  }
  throw new Error('Foto muito grande. Escolha uma imagem menor.');
 }
+async function uploadPhoto(id:number,file:File):Promise<string>{
+ const image=await preparePhoto(file);
+ const response=await fetch('/api/media-upload?listingId='+id,{method:'POST',headers:{'Content-Type':image.type},body:image,credentials:'same-origin',signal:AbortSignal.timeout(30000)});
+ const value=await response.json();
+ if(!response.ok)throw new Error(value.error||'Não foi possível enviar a foto.');
+ return typeof value.warning==='string'?' '+value.warning:'';
+}
 export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,startNew=false,view='area',draftId,editId}:{draft?:Draft;admin?:boolean;initialPhoto?:File|null;startNew?:boolean;view?:'entrar'|'area'|'publicar';draftId?:string;editId?:number}){
  const [draft]=useState<Draft|undefined>(()=>{if(providedDraft)return providedDraft;try{return readDrafts(localStorage).find(item=>item.id===draftId)}catch{return undefined}});
 
@@ -50,6 +57,8 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(view==='publicar'||!!draft||startNew),[editing,setEditing]=useState<Offer|null>(null);
  const [profileName,setProfileName]=useState(''),[bio,setBio]=useState('');
  const [lastPublished,setLastPublished]=useState<number|null>(null);
+ const [photoRetry,setPhotoRetry]=useState<{id:number;file:File}|null>(null);
+ const initializedEdit=useRef<number|undefined>(undefined);
  const [readyAccount,setReadyAccount]=useState<string|null>(null);
  const refresh=async(loadProfile=false)=>{
   if(admin){
@@ -75,7 +84,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  useEffect(()=>{
   if(view!=='publicar'||!account||readyAccount!==account.id)return;
   if(draftId&&!draft){setError('Este rascunho não está salvo neste navegador.');setShowForm(false);return}
-  if(editId){const own=offers.find(offer=>offer.id===editId);if(!own){setError('Anúncio não encontrado na sua conta.');setShowForm(false);return}setEditing(own);setCategory(own.category);setShowForm(true)}
+  if(editId&&initializedEdit.current!==editId){const own=offers.find(offer=>offer.id===editId);if(!own){setError('Anúncio não encontrado na sua conta.');setShowForm(false);return}initializedEdit.current=editId;setEditing(own);setCategory(own.category);setShowForm(true)}
  },[view,account,readyAccount,editId,draftId,draft,offers]);
  const execute=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');setLastPublished(null);try{await fn()}catch(reason){setError(reason instanceof Error?reason.message:'Não foi possível concluir a solicitação.')}finally{setBusy(false)}};
  const authenticate=(event:FormEvent<HTMLFormElement>)=>{
@@ -96,17 +105,17 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
    const result=await api(editing?'listings/'+editing.id:'listings',editing?'PATCH':'POST',payload);
    const id=editing?.id||Number(result.id);
    let photoNotice=photo&&photoAvailable===false?' O anúncio foi salvo sem foto porque o envio de imagens está indisponível.':'';
+   setPhotoRetry(null);
    if(photo&&photo.size&&photoAvailable){
     try{
-     const image=await preparePhoto(photo);
-     const response=await fetch('/api/media-upload?listingId='+id,{method:'POST',headers:{'Content-Type':image.type},body:image,credentials:'same-origin',signal:AbortSignal.timeout(30000)});
-     const value=await response.json();
-     if(!response.ok)throw new Error(value.error||'Falha na foto.');
-     if(value.warning)photoNotice=' '+value.warning;
-    }catch(reason){photoNotice=' A oferta foi salva, mas a foto não: '+(reason instanceof Error?reason.message:'erro de envio')+'.'}
+     photoNotice=await uploadPhoto(id,photo);
+    }catch(reason){setPhotoRetry({id,file:photo});photoNotice=' A oferta foi salva, mas a foto não: '+(reason instanceof Error?reason.message:'erro de envio')+'.'}
    }
-   setRequestId(createDraftId());setShowForm(false);setEditing(null);setSelectedPhoto(null);await refresh();
-   setLastPublished(result.status==='published'?id:null);setNotice(listingNotice(result.status)+photoNotice);
+   setRequestId(createDraftId());setShowForm(false);setEditing(null);setSelectedPhoto(null);
+   setLastPublished(result.status==='published'?id:null);
+   const savedNotice=listingNotice(result.status)+photoNotice;
+   setNotice(savedNotice);
+   try{await refresh()}catch{setNotice(savedNotice+' Não foi possível atualizar sua lista. Consulte Minha área novamente.')}
   });
  };
  const edit=(offer:Offer)=>{location.hash=publishEditHref(offer.id)};
@@ -118,6 +127,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  return <section className="account-area">
   <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do site.':view==='publicar'?(editId?'Editar anúncio.':'Publicar anúncio.'):view==='area'?'Minha área.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':register?'Use nome, e-mail, bairro e WhatsApp para criar sua conta. Depois, adicione o produto e publique.':'Entre para publicar e gerenciar seus anúncios. Quem compra não precisa de conta.'}</p></div>
   {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<div role="status" className="account-notice"><p>{notice}</p>{lastPublished&&<a className="text-link" href={listingHref(lastPublished)}>Ver meu anúncio na vitrine →</a>}</div>}
+  {photoRetry&&<div className="panel"><p>A foto escolhida continua disponível enquanto esta página estiver aberta.</p><Button disabled={busy} onClick={()=>void execute(async()=>{const warning=await uploadPhoto(photoRetry.id,photoRetry.file);setPhotoRetry(null);setNotice('Foto salva no anúncio.'+warning)})}>Tentar enviar a foto novamente</Button></div>}
   {view==='publicar'&&<a className="back" href={ROUTES.account}>← Voltar à Minha área</a>}
   {!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
     <div className="auth-switch" aria-label="Escolha como acessar"><Button variant={register?'outline':'primary'} aria-pressed={!register} disabled={busy} onClick={()=>{setRegister(false);setError('')}}>Entrar</Button><Button variant={register?'primary':'outline'} aria-pressed={register} disabled={busy} onClick={()=>{setRegister(true);setError('')}}>Criar conta</Button></div>

@@ -20,6 +20,8 @@ jobs:
           cache: npm
       - name: Instalar dependências
         run: npm ci
+      - name: Verificar alertas conhecidos nas dependências
+        run: npm audit --audit-level=moderate
       - name: Testes unitários
         run: npm test
       - name: Verificar esquema SQL

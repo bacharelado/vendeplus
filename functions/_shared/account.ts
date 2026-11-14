@@ -3,6 +3,7 @@ import {randomBytes,scrypt,timingSafeEqual,createHash} from 'node:crypto';
 import {handlePasswordReset,type PasswordResetEnv} from './password-reset.ts';
 import {moderateOffer} from './moderation.ts';
 import {removeListingPhoto,type PhotoEnv} from './photo-cleanup.ts';
+import {readJson,RequestFailure as Failure} from './http.ts';
 
 type Row=Record<string,unknown>;
 type Statement={bind:(...values:unknown[])=>Statement;first:()=>Promise<Row|null>;all:()=>Promise<{results:Row[]}>;run:()=>Promise<{meta:{changes:number}}>};
@@ -17,17 +18,7 @@ export async function passwordMatches(password:string,encoded:string){const [alg
 const cookie=(token:string,maxAge=604800)=>`__Host-vendeplus=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 const tokenFrom=(request:Request)=>{const value=request.headers.get('Cookie')?.split(';').map(x=>x.trim()).find(x=>x.startsWith('__Host-vendeplus='))?.split('=')[1];return value&&/^[a-f0-9]{64}$/.test(value)?value:''};
 const reply=(data:unknown,status=200,extra:Record<string,string>={})=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...extra}});
-class Failure extends Error{status:number;constructor(message:string,status=400){super(message);this.status=status}}
 function text(value:unknown,min:number,max:number){if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)throw new Failure('Preencha os campos com informações válidas.');return value.trim()}
-async function body(request:Request){
- if(request.headers.get('Origin')!==new URL(request.url).origin||request.headers.get('Sec-Fetch-Site')==='cross-site')throw new Failure('Origem da solicitação não permitida.',403);
- if(request.headers.get('Content-Type')?.split(';')[0]!=='application/json')throw new Failure('Envie os dados em JSON.',415);
- if(Number(request.headers.get('Content-Length'))>16384)throw new Failure('Solicitação muito grande.',413);
- const reader=request.body?.getReader();if(!reader)throw new Failure('Dados ausentes.');let size=0;const chunks:Uint8Array[]=[];
- for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>16384){await reader.cancel();throw new Failure('Solicitação muito grande.',413)}chunks.push(value)}
- const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
- try{const data=JSON.parse(new TextDecoder().decode(bytes));if(!data||Array.isArray(data)||typeof data!=='object')throw 0;return data as Row}catch{throw new Failure('Dados inválidos.')}
-}
 async function rate(db:Database,key:string,limit:number){
  const now=Math.floor(Date.now()/1000);
  const result=await db.prepare('INSERT INTO marketplace_rate_limits(key,attempts,expires_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN expires_at<=? THEN 1 ELSE attempts+1 END,expires_at=CASE WHEN expires_at<=? THEN excluded.expires_at ELSE expires_at END RETURNING attempts').bind(hash(key),now+900,now,now).first();
@@ -42,7 +33,7 @@ export async function session(db:Database,request:Request){
 function sessionStatement(db:Database,id:string,token:string){return db.prepare('INSERT INTO marketplace_sessions(token_hash,account_id,expires_at) VALUES (?,?,unixepoch()+604800)').bind(hash(token),id)}
 function listingData(data:Row){
  const title=text(data.title,5,90),description=text(data.description,10,2000),fulfillment=text(data.fulfillment,1,180);
- if(!categories.includes(String(data.category))||!['Novo','Usado','Não aplicável'].includes(String(data.condition))||!neighborhoods.includes(String(data.neighborhood)))throw new Failure('Categoria, condição ou bairro inválido.');
+ if(typeof data.category!=='string'||!categories.includes(data.category)||typeof data.condition!=='string'||!['Novo','Usado','Não aplicável'].includes(data.condition)||typeof data.neighborhood!=='string'||!neighborhoods.includes(data.neighborhood))throw new Failure('Categoria, condição ou bairro inválido.');
  if(data.priceCents!==null&&(!Number.isSafeInteger(data.priceCents)||Number(data.priceCents)<=0||Number(data.priceCents)>100000000)||data.priceCents===null&&data.category!=='Serviços')throw new Failure('Informe um preço válido.');
  return [title,description,data.priceCents,data.category,data.condition,fulfillment];
 }
@@ -52,7 +43,7 @@ export async function handleAccount(context:Context){
  const db=env.MARKETPLACE_DB,path=new URL(request.url).pathname.replace(/\/$/,'').replace('/api/account','');
  try{
   if(!['GET','POST','PATCH'].includes(request.method))return reply({error:'Método não permitido.'},405,{Allow:'GET, POST, PATCH'});
-  const data=request.method==='GET'?{}:await body(request);
+  const data=request.method==='GET'?{}:await readJson(request);
   if(path.startsWith('/password-reset/'))return await handlePasswordReset({db,env,request,path,data,waitUntil:context.waitUntil?.bind(context),hashPassword:passwordHash,rate});
   if(path==='/session'&&request.method==='GET')return reply({account:await session(db,request)});
   if((path==='/register'||path==='/login')&&request.method==='POST'){
@@ -63,7 +54,7 @@ export async function handleAccount(context:Context){
    const token=randomBytes(32).toString('hex');
    if(path==='/register'){
     const name=text(data.name,2,80),whatsapp=normalizeWhatsapp(data.whatsapp);
-    if(!whatsapp||!neighborhoods.includes(String(data.neighborhood))||data.acceptContact!==true)throw new Failure('Informe o bairro, um WhatsApp brasileiro com DDD e autorize sua divulgação nos anúncios aprovados.');
+    if(!whatsapp||typeof data.neighborhood!=='string'||!neighborhoods.includes(data.neighborhood)||data.acceptContact!==true)throw new Failure('Informe o bairro, um WhatsApp brasileiro com DDD e autorize sua divulgação nos anúncios aprovados.');
     const encoded=await passwordHash(password),id=crypto.randomUUID();
     try{await db.batch([db.prepare('INSERT INTO marketplace_sellers(id,display_name,whatsapp) VALUES (?,?,?)').bind(id,name,whatsapp),db.prepare('INSERT INTO marketplace_accounts(id,email,password_hash,neighborhood) VALUES (?,?,?,?)').bind(id,email,encoded,data.neighborhood),sessionStatement(db,id,token)])}
     catch(error){if(await db.prepare('SELECT id FROM marketplace_accounts WHERE email=?').bind(email).first())throw new Failure('Não foi possível cadastrar com esse e-mail. Tente entrar na sua conta.',409);throw error}
@@ -104,13 +95,19 @@ export async function handleAccount(context:Context){
   }
   const own=/^\/listings\/(\d+)$/.exec(path);
   if(own&&request.method==='PATCH'){
-   const id=Number(own[1]);
+   const id=Number(own[1]);if(!Number.isSafeInteger(id)||id<=0)throw new Failure('Anúncio inválido.');
    const current=await db.prepare("SELECT status,image_url AS image FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
    if(!current||['removed','rejected'].includes(String(current.status)))throw new Failure('Anúncio não encontrado.',404);
    if(data.action==='edit'){
     const values=listingData(data);
     const status=moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':current.status==='pending'?'published':String(current.status);
-    await db.batch([db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,'edited'),db.prepare('UPDATE marketplace_listings SET title=?,description=?,price_cents=?,category=?,condition=?,fulfillment=?,status=? WHERE id=? AND seller_id=?').bind(...values,status,id,account.id),db.prepare('UPDATE marketplace_listing_details SET neighborhood=? WHERE listing_id=? AND seller_id=?').bind(data.neighborhood,id,account.id)]);
+    // A concurrent removal/moderation decision must not be undone by a stale edit.
+    const results=await db.batch([
+     db.prepare('UPDATE marketplace_listings SET title=?,description=?,price_cents=?,category=?,condition=?,fulfillment=?,status=? WHERE id=? AND seller_id=? AND status=?').bind(...values,status,id,account.id,current.status),
+     db.prepare('UPDATE marketplace_listing_details SET neighborhood=? WHERE listing_id=? AND seller_id=? AND changes()=1').bind(data.neighborhood,id,account.id),
+     db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) SELECT ?,?,? WHERE changes()=1').bind(id,account.id,'edited')
+    ]);
+    if(Number((results[0] as {meta?:{changes?:number}})?.meta?.changes)!==1)throw new Failure('O anúncio mudou. Atualize a página antes de editar.',409);
     return reply({ok:true,status});
    }
    if(!['paused','sold','removed','published'].includes(String(data.status)))throw new Failure('Ação inválida.');
@@ -128,6 +125,7 @@ export async function handleAccount(context:Context){
   if(path==='/password'&&request.method==='POST'){
     const oldPassword=typeof data.oldPassword==='string'?data.oldPassword:'',newPassword=typeof data.newPassword==='string'?data.newPassword:'';
     if(newPassword.length<8||newPassword.length>128)throw new Failure('Nova senha deve ter entre 8 e 128 caracteres.');
+    if(oldPassword.length<8||oldPassword.length>128)throw new Failure('Senha atual incorreta.',401);
     await rate(db,'password:'+account.id,8);
     const row=await db.prepare('SELECT password_hash FROM marketplace_accounts WHERE id=?').bind(account.id).first();
     if(!row||!await passwordMatches(oldPassword,String(row.password_hash)))throw new Failure('Senha atual incorreta.',401);

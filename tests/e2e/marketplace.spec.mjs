@@ -382,3 +382,97 @@ test('area de vendedor nao carrega catalogo publico desnecessariamente',async({p
  await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
  expect(requests).toBeGreaterThan(0);
 });
+
+test('bairro e preço combinam com a busca, e limpar texto preserva o bairro',async({page})=>{
+ const listings=[{...items[0],neighborhood:'Poranga I'},{...items[0],id:103,title:'Mesa mais barata',priceCents:1000,neighborhood:'Poranga I'},{...items[0],id:104,title:'Mesa de outro bairro',priceCents:500,neighborhood:'Jacarezinho'}];
+ await catalog(page,listings);await page.goto('/');
+ await page.getByRole('combobox',{name:'Bairro',exact:true}).selectOption('Poranga I');
+ await page.getByRole('combobox',{name:'Ordenar por',exact:true}).selectOption('menor');
+ await expect(page.locator('.listing-card')).toHaveCount(2);
+ await expect(page.locator('.listing-card').first()).toContainText('Mesa mais barata');
+ await page.getByRole('searchbox',{name:'Buscar anúncios'}).fill('sem resultado');
+ await expect(page.getByRole('heading',{name:'Nenhum anúncio encontrado'})).toBeVisible();
+ await expect(page.locator('.catalog-context')).toContainText('sem resultado');
+ await page.getByRole('button',{name:'Limpar busca',exact:true}).click();
+ await expect(page.getByRole('combobox',{name:'Bairro',exact:true})).toHaveValue('Poranga I');
+ await expect(page.locator('.listing-card')).toHaveCount(2);
+});
+
+test('player externo só carrega quando solicitado',async({page})=>{
+ await catalog(page);await page.route('https://drive.google.com/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Player de teste</title>'}));
+ await page.goto('/');
+ await expect(page.locator('.apocalyptic-player iframe')).toHaveCount(0);
+ await page.getByRole('button',{name:'Reproduzir vídeo da APOCALYPTIC'}).click();
+ await expect(page.locator('.apocalyptic-player iframe')).toHaveAttribute('src',/^https:\/\/drive.google.com\/file\/d\/.+\/preview$/);
+});
+
+test('edição salva uma vez e não reabre o formulário após atualizar a lista',async({page})=>{
+ await catalog(page);await seller(page);
+ let offer={...items[0],neighborhood:'Poranga II',status:'published'},writes=0;
+ await page.route('**/api/account/listings',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:[offer]})}));
+ await page.route('**/api/account/listings/101',route=>{
+  writes++;offer={...offer,...route.request().postDataJSON()};
+  return route.fulfill({contentType:'application/json',body:'{"ok":true,"status":"published"}'});
+ });
+ await page.goto('/#publicar?anuncio=101');
+ await expect(page.getByLabel('Nome do produto ou serviço',{exact:true})).toHaveValue('Mesa de teste');
+ await page.getByLabel('Nome do produto ou serviço',{exact:true}).fill('Mesa atualizada no teste');
+ await page.getByRole('button',{name:'Salvar alterações',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
+ await expect(page.locator('.seller-listing-form')).toHaveCount(0);
+ expect(writes).toBe(1);
+});
+
+test('anúncio salvo continua confirmado quando só a atualização da lista falha',async({page})=>{
+ await catalog(page);await seller(page);let saved=false,writes=0;
+ await page.route('**/api/account/listings',route=>{
+  if(route.request().method()==='POST'){saved=true;writes++;return route.fulfill({status:201,contentType:'application/json',body:'{"id":123,"status":"published"}'})}
+  return route.fulfill({status:saved?503:200,contentType:'application/json',body:saved?'{"error":"Falha na lista"}':'{"listings":[]}'});
+ });
+ await fillListing(page);await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toContainText('Não foi possível atualizar sua lista');
+ await expect(page.getByRole('alert')).toHaveCount(0);
+ await expect(page.locator('.seller-listing-form')).toHaveCount(0);
+ expect(writes).toBe(1);
+});
+
+test('foto pode ser reenviada após falha sem criar outro anúncio',async({page})=>{
+ await catalog(page);await seller(page);let uploads=0,writes=0;
+ await page.route('**/api/account/listings',route=>{
+  if(route.request().method()==='POST'){writes++;return route.fulfill({status:201,contentType:'application/json',body:'{"id":123,"status":"published"}'})}
+  return route.fulfill({contentType:'application/json',body:'{"listings":[]}'});
+ });
+ await page.route('**/api/media-upload?listingId=123',route=>{
+  uploads++;return route.fulfill({status:uploads===1?503:200,contentType:'application/json',body:uploads===1?'{"error":"Falha temporária no envio"}':'{"ok":true}'});
+ });
+ await fillListing(page);
+ await page.getByLabel('Foto do produto (opcional)').setInputFiles({name:'produto.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGOs6IliwAaYsIoOWgkAFekBbvxvoJ4AAAAASUVORK5CYII=','base64')});
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await page.getByRole('button',{name:'Tentar enviar a foto novamente',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Foto salva no anúncio.'})).toBeVisible();
+ expect(writes).toBe(1);expect(uploads).toBe(2);
+});
+
+test('perfil com falha permite tentar novamente e trocar de vendedor limpa dados anteriores',async({page})=>{
+ await catalog(page);
+ const first='00000000-0000-4000-8000-000000000001',second='00000000-0000-4000-8000-000000000002';let calls=0;
+ await page.route('**/api/sellers/'+first,route=>{
+  calls++;return route.fulfill({status:calls===1?503:200,contentType:'application/json',body:calls===1?'{}':JSON.stringify({seller:{id:first,name:'Primeira loja',neighborhood:'Poranga I',bio:''},listings:[]})});
+ });
+ await page.route('**/api/sellers/'+second,route=>route.fulfill({status:503,contentType:'application/json',body:'{}'}));
+ await page.goto('/#vendedor-'+first);
+ await page.getByRole('button',{name:'Tentar novamente',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Primeira loja',exact:true})).toBeVisible();
+ await page.evaluate(hash=>{location.hash=hash},'#vendedor-'+second);
+ await expect(page.getByText('Não foi possível carregar este perfil.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Primeira loja',exact:true})).toHaveCount(0);
+});
+
+test('trocar o endereço entre entrar e cadastro exibe o formulário correto',async({page})=>{
+ await catalog(page);await page.goto('/#entrar');
+ await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
+ await page.evaluate(()=>{location.hash='#cadastro'});
+ await expect(page.getByRole('heading',{name:'Crie sua conta.'})).toBeVisible();
+ await page.evaluate(()=>{location.hash='#entrar'});
+ await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
+});

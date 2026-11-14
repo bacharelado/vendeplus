@@ -12,7 +12,7 @@ test('os caminhos antigos continuam compatíveis',()=>{
   assert.deepEqual(readRoute('#catalogo'),{name:'inicio',section:'ofertas'});
   assert.deepEqual(readRoute('#como-funciona'),{name:'inicio',section:'como-comprar'});
   for(const hash of ['#painel','#conta']) assert.deepEqual(readRoute(hash),{name:'area'});
-  assert.deepEqual(readRoute('#cadastro'),{name:'entrar'});
+  assert.deepEqual(readRoute('#cadastro'),{name:'entrar',register:true});
   assert.deepEqual(readRoute('#anunciar'),{name:'publicar'});
   assert.deepEqual(readRoute('#editar-rascunho-1'),{name:'publicar',draftId:'rascunho-1'});
 });
@@ -24,7 +24,7 @@ test('edição de anúncios e rascunhos preserva os identificadores',()=>{
   assert.deepEqual(readRoute(publishEditHref(123)),{name:'publicar',editId:123});
   assert.deepEqual(readRoute(publishDraftHref('abc-12')),{name:'publicar',draftId:'abc-12'});
   assert.deepEqual(readRoute('#publicar'),{name:'publicar'});
-  assert.deepEqual(readRoute('#publicar?anuncio=nao-e-numero'),{name:'publicar'});
+  assert.deepEqual(readRoute('#publicar?anuncio=nao-e-numero'),{name:'indisponivel'});
 });
 test('links de anúncio e perfil permanecem compartilháveis',()=>{
   assert.deepEqual(readRoute(listingHref(501)),{name:'anuncio',id:501});
@@ -41,4 +41,9 @@ test('acesso vazio ou inválido não cria rota inesperada',()=>{
 test('menu móvel possui somente três atalhos das páginas existentes',()=>{
   assert.deepEqual(MOBILE_NAV.map(item=>item.id),['inicio','publicar','area']);
   for(const item of MOBILE_NAV) assert.equal(readRoute(item.href).name,item.id);
+});
+test('identificadores malformados não abrem outro anúncio nem um formulário novo',()=>{
+  for(const hash of ['#anuncio-0','#anuncio-9007199254740993','#publicar?anuncio=0','#publicar?anuncio=9007199254740993','#vendedor-'+'-'.repeat(36)]){
+    assert.deepEqual(readRoute(hash),{name:'indisponivel'});
+  }
 });
