@@ -9,8 +9,8 @@
 - CSP sem scripts inline ou `eval`, proibição de enquadramento, HSTS em HTTPS, `nosniff` e restrição de câmera, microfone e geolocalização. O frame externo autorizado é o Google Drive usado pelo vídeo.
 - Respostas das APIs e erros não ficam em cache. Caminhos inexistentes têm HTTP 404; APIs inexistentes retornam JSON.
 - Upload autenticado, validação e reprocessamento da imagem, cotas e verificação de propriedade. A entrega depende de anúncio publicado e vendedor não suspenso.
-- Limites persistentes para autenticação, publicação, recuperação, fotos e denúncias. Denúncias inválidas não entram na fila e a leitura de corpos excessivos é interrompida.
-- Alteração de senha encerra as outras sessões. A recuperação por e-mail só se apresenta como disponível quando o serviço e a tabela estão configurados.
+- Limites persistentes para autenticação, publicação, fotos e denúncias. Denúncias inválidas não entram na fila e a leitura de corpos excessivos é interrompida.
+- Alteração de senha encerra as outras sessões. A recuperação por e-mail foi retirada; o login oferece suporte no WhatsApp, sem redefinição automática ou envio de dados da conta.
 
 ## Verificação
 
@@ -28,7 +28,7 @@ Os testes Node usam bancos SQLite isolados, incluindo isolamento entre duas cont
 
 ## Limites que exigem trabalho operacional
 
-- Ativar o remetente verificado e o envio de e-mails para recuperação de senha. Não usar recuperação por nome, telefone informado ou acesso direto ao banco como atalho.
+- Preparar uma ferramenta de redefinição para o suporte após confirmar a titularidade. Não usar nome, telefone informado ou outros dados públicos como prova suficiente, nem solicitar senhas ou códigos por mensagem.
 - Fortalecer a autenticação administrativa com um segundo fator e uma política de recuperação adequada. O login atual não possui MFA próprio.
 - Verificar controle de WhatsApp: contas `pending` podem publicar anúncios comuns, e o produto não deve afirmar que esse contato foi verificado.
 - Manter tratamento de denúncias, contestação, retenção/exclusão de dados, termos e política de privacidade definidos para a operação.

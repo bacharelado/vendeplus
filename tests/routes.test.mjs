@@ -18,7 +18,7 @@ test('os caminhos antigos continuam compatíveis',()=>{
 });
 test('recuperação de senha preserva os endereços existentes',()=>{
   assert.deepEqual(readRoute(ROUTES.recovery),{name:'entrar',recover:true});
-  assert.deepEqual(readRoute('#entrar?redefinir=abc123'),{name:'entrar',recover:true,resetToken:'abc123'});
+  assert.deepEqual(readRoute('#entrar?redefinir=abc123'),{name:'entrar',recover:true});
 });
 test('edição de anúncios e rascunhos preserva os identificadores',()=>{
   assert.deepEqual(readRoute(publishEditHref(123)),{name:'publicar',editId:123});
