@@ -6,7 +6,7 @@ export function PhotoPicker({onFile,initialPhoto=null,draftMode=false,storageAva
  useEffect(()=>{if(!photo){setPreview('');return}const url=URL.createObjectURL(photo);setPreview(url);return ()=>URL.revokeObjectURL(url)},[photo]);
  const changed=(event:ChangeEvent<HTMLInputElement>)=>{
   const file=event.currentTarget.files?.[0]||null;setError('');
-  if(file&&(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12000000)){setError('Escolha uma foto JPG, PNG ou WebP de até 12 MB.');event.currentTarget.value='';return}
+  if(file&&(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12000000)){setPhoto(null);onFile(null);setError('Escolha uma foto JPG, PNG ou WebP de até 12 MB.');event.currentTarget.value='';return}
   setPhoto(file);onFile(file);
  };
  return <section className="ai-photo-box" aria-label="Foto do anúncio">

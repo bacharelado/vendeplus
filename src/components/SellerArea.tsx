@@ -102,7 +102,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
   if(photo&&photoAvailable===undefined){setError('Aguarde um instante enquanto verificamos o envio da foto.');return}
   const price=parseBRL(data.price,category==='Serviços');if(!price.ok){setError(price.error);return}
   void execute(async()=>{
-   const payload={...data,fulfillment:String(data.fulfillment||'').trim()||'Retirada ou entrega a combinar pelo WhatsApp.',priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
+   const payload={...data,fulfillment:String(data.fulfillment||'').trim()||(category==='Serviços'?'Atendimento a combinar pelo WhatsApp.':'Retirada ou entrega a combinar pelo WhatsApp.'),priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
    const result=await api(editing?'listings/'+editing.id:'listings',editing?'PATCH':'POST',payload);
    const id=editing?.id||Number(result.id);
    let photoNotice=photo&&photoAvailable===false?' O anúncio foi salvo sem foto porque o envio de imagens está indisponível.':'';
@@ -119,8 +119,12 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
    try{await refresh()}catch{setNotice(savedNotice+' Não foi possível atualizar sua lista. Consulte Minha área novamente.')}
   });
  };
+ const startAnother=()=>{
+  if(editId||draftId){location.hash=ROUTES.publish;return}
+  setRequestId(createDraftId());setCategory('Alimentação');setSelectedPhoto(null);setPhotoRetry(null);setLastPublished(null);setNotice('');setError('');setShowForm(true);
+ };
  const edit=(offer:Offer)=>{location.hash=publishEditHref(offer.id)};
- const update=(offer:Offer,status:string)=>void execute(async()=>{const result=await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice(result.warning||(status==='removed'?'Anúncio removido.':'Anúncio atualizado.'))});
+ const update=(offer:Offer,status:string)=>void execute(async()=>{const result=await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice(result.warning||(result.status==='pending'?'O anúncio foi enviado para análise antes de voltar à vitrine.':status==='removed'?'Anúncio removido.':'Anúncio atualizado.'))});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
  const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh(true);setNotice('Perfil atualizado.')})};
@@ -130,6 +134,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
   {error&&<p role="alert" className="form-error">{error}</p>}{notice&&<div role="status" className="account-notice"><p>{notice}</p>{lastPublished&&<a className="text-link" href={listingHref(lastPublished)}>Ver meu anúncio na vitrine →</a>}</div>}
   {photoRetry&&<div className="panel"><p>A foto escolhida continua disponível enquanto esta página estiver aberta.</p><Button disabled={busy} onClick={()=>void execute(async()=>{const warning=await uploadPhoto(photoRetry.id,photoRetry.file);setPhotoRetry(null);setNotice('Foto salva no anúncio.'+warning)})}>Tentar enviar a foto novamente</Button></div>}
   {view==='publicar'&&<a className="back" href={ROUTES.account}>← Voltar à Minha área</a>}
+  {view==='publicar'&&!showForm&&notice&&<Button disabled={busy} onClick={startAnother}>Publicar outro anúncio</Button>}
   {!account?<form className="draft-form panel account-form" onSubmit={authenticate}>
     <div className="auth-switch" aria-label="Escolha como acessar"><Button variant={register?'outline':'primary'} aria-pressed={!register} disabled={busy} onClick={()=>{setRegister(false);setError('')}}>Entrar</Button><Button variant={register?'primary':'outline'} aria-pressed={register} disabled={busy} onClick={()=>{setRegister(true);setError('')}}>Criar conta</Button></div>
     {register&&<p className="auth-purpose">Sua conta permite editar o anúncio, pausar ou marcar como vendido.</p>}
@@ -173,7 +178,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
       <Field label="Condição"><select name="condition" aria-label="Condição" required defaultValue={editing?.condition||draft?.condition||''}><option value="" disabled>Selecione o estado</option><option>Novo</option><option>Usado</option><option>Não aplicável</option></select></Field>
      </div>
      <Field label="Descrição" hint="Conte o estado, os detalhes e o que está incluído."><textarea name="description" placeholder="Ex.: Mesa usada, bem conservada, com quatro cadeiras." required minLength={10} maxLength={2000} defaultValue={editing?.description||draft?.description}/></Field>
-     <Field label="Entrega ou retirada (opcional)" hint="Se deixar em branco, vocês combinam pelo WhatsApp."><input name="fulfillment" placeholder="Ex.: Retirada no Poranga II" maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></Field>
+     <Field label={category==='Serviços'?'Atendimento (opcional)':'Entrega ou retirada (opcional)'} hint="Se deixar em branco, vocês combinam pelo WhatsApp."><input name="fulfillment" placeholder={category==='Serviços'?'Ex.: Atendimento remoto ou no local':'Ex.: Retirada no Poranga II'} maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></Field>
      <div className="contact-summary"><strong>WhatsApp para receber interessados</strong><span>{account.whatsapp||'O número cadastrado na sua conta'}</span><small>O contato da sua conta acompanha o anúncio automaticamente.</small></div>
      <p className="seller-form-disclaimer">Seu contato aparece no anúncio. Anúncios sinalizados podem precisar de análise. O VENDE+ não recebe pagamentos.</p>
      <div className="publish-actions"><Button type="submit" full disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</Button></div>

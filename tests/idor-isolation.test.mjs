@@ -142,3 +142,25 @@ test('uma edição atrasada não desfaz remoção, rejeição ou pausa concorren
     }
   }finally{sqlite.close()}
 });
+
+test('reativação não publica conteúdo alterado depois da verificação de moderação',async()=>{
+ const {db,sqlite}=database();
+ try{
+  const cookie=await register(db,'A');
+  const data={title:'Mesa de madeira pausada',description:'Oferta usada somente nesta verificação.',priceCents:1000,category:'Casa',condition:'Usado',fulfillment:'A combinar',neighborhood:'Poranga I',requestId:crypto.randomUUID()};
+  const created=await accountRequest(db,'/listings',{method:'POST',cookie,data});
+  assert.equal(created.status,201);const id=(await created.json()).id;
+  assert.equal((await accountRequest(db,'/listings/'+id,{method:'PATCH',cookie,data:{status:'paused'}})).status,200);
+  const racingDb={...db,prepare(sql){
+   const statement=db.prepare(sql);
+   if(sql.startsWith('UPDATE marketplace_listings SET status=')){
+    const run=statement.run;
+    statement.run=async()=>{sqlite.prepare('UPDATE marketplace_listings SET title=? WHERE id=?').run('Documentos falsos para revisão',id);return run()};
+   }
+   return statement;
+  }};
+  const response=await accountRequest(racingDb,'/listings/'+id,{method:'PATCH',cookie,data:{status:'published'}});
+  assert.equal(response.status,409);
+  assert.equal(sqlite.prepare('SELECT status FROM marketplace_listings WHERE id=?').get(id).status,'paused');
+ }finally{sqlite.close()}
+});

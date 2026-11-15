@@ -125,3 +125,54 @@ test('troca de senha exige senha atual e revoga sessões antigas',async()=>{
  assert.equal((await h.request('login','POST',registration())).status,401);
  assert.equal((await h.request('login','POST',{email:registration().email,password:'NovaSenha#2026'})).status,200);
 });
+
+test('anúncio reprovado permite correção para nova análise ou remoção somente pelo dono',async()=>{
+ const h=harness(),owner=await h.request('register','POST',registration()),other=await h.request('register','POST',registration('other@example.invalid')),admin=await h.request('register','POST',registration('admin@example.invalid'));
+ h.sqlite.prepare("UPDATE marketplace_accounts SET role='admin' WHERE id=?").run(admin.body.account.id);
+ const ids=[];
+ for(let i=0;i<2;i++){
+  const created=await h.request('listings','POST',{...offer(),title:'Documentos falsos para revisão'},owner.cookie);
+  assert.equal(created.body.status,'pending');ids.push(created.body.id);
+  assert.equal((await h.request('moderation/'+created.body.id,'POST',{status:'rejected'},admin.cookie)).status,200);
+ }
+ const corrected={...offer(),action:'edit',title:'Mesa de madeira corrigida'};
+ assert.equal((await h.request('listings/'+ids[0],'PATCH',corrected,other.cookie)).status,404);
+ assert.equal((await h.request('listings/'+ids[1],'PATCH',{status:'removed'},other.cookie)).status,404);
+ const edited=await h.request('listings/'+ids[0],'PATCH',corrected,owner.cookie);
+ assert.equal(edited.status,200);assert.equal(edited.body.status,'pending');
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
+ assert.equal((await h.request('listings/'+ids[1],'PATCH',{status:'removed'},owner.cookie)).status,200);
+ assert.equal((await h.request('listings','GET',undefined,owner.cookie)).body.listings.length,1);
+ assert.equal((await h.request('listings/'+ids[1],'PATCH',corrected,owner.cookie)).status,404);
+});
+
+test('editar anúncio vendido preserva o encerramento mesmo com conteúdo sinalizado',async()=>{
+ const h=harness(),owner=await h.request('register','POST',registration()),admin=await h.request('register','POST',registration('admin@example.invalid'));
+ h.sqlite.prepare("UPDATE marketplace_accounts SET role='admin' WHERE id=?").run(admin.body.account.id);
+ const created=await h.request('listings','POST',offer(),owner.cookie),id=created.body.id;
+ assert.equal((await h.request('listings/'+id,'PATCH',{status:'sold'},owner.cookie)).status,200);
+ for(const title of ['Mesa vendida com descrição corrigida','Documentos falsos para revisão']){
+  const edited=await h.request('listings/'+id,'PATCH',{...offer(),action:'edit',title},owner.cookie);
+  assert.equal(edited.status,200);assert.equal(edited.body.status,'sold');
+  assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
+ }
+ assert.equal((await h.request('moderation/'+id,'POST',{status:'published'},admin.cookie)).status,404);
+ assert.equal((await h.request('listings/'+id,'PATCH',{status:'published'},owner.cookie)).status,409);
+});
+
+test('pausa é preservada na edição e reativação sinalizada aguarda revisão do administrador',async()=>{
+ const h=harness(),owner=await h.request('register','POST',registration()),admin=await h.request('register','POST',registration('admin@example.invalid'));
+ h.sqlite.prepare("UPDATE marketplace_accounts SET role='admin' WHERE id=?").run(admin.body.account.id);
+ const created=await h.request('listings','POST',offer(),owner.cookie),id=created.body.id;
+ assert.equal((await h.request('listings/'+id,'PATCH',{status:'paused'},owner.cookie)).status,200);
+ const edited=await h.request('listings/'+id,'PATCH',{...offer(),action:'edit',title:'Documentos falsos para revisão'},owner.cookie);
+ assert.equal(edited.status,200);assert.equal(edited.body.status,'paused');
+ const resumed=await h.request('listings/'+id,'PATCH',{status:'published'},owner.cookie);
+ assert.equal(resumed.status,200);assert.equal(resumed.body.status,'pending');
+ const corrected=await h.request('listings/'+id,'PATCH',{...offer(),action:'edit'},owner.cookie);
+ assert.equal(corrected.status,200);assert.equal(corrected.body.status,'pending');
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
+ assert.equal((await h.request('moderation/'+id+'/seller','POST',{confirmContact:true},admin.cookie)).status,200);
+ assert.equal((await h.request('moderation/'+id,'POST',{status:'published'},admin.cookie)).status,200);
+ assert.equal(h.sqlite.prepare(catalogQuery).all().length,1);
+});
