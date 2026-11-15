@@ -179,11 +179,44 @@ test('preço inválido e falha de publicação preservam o formulário sem suces
 test('serviço pode ser publicado sob orçamento',async({page})=>{
  await catalog(page);const backend=await seller(page);await fillListing(page);
  await page.getByRole('combobox',{name:'Categoria',exact:true}).selectOption('Serviços');
- await page.locator('input[name=price]').fill('');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await page.locator('input[name=price]').fill('');await page.locator('input[name=fulfillment]').fill('');await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
  await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
  expect(backend.payload().priceCents).toBeNull();expect(backend.payload().category).toBe('Serviços');
+ expect(backend.payload().fulfillment).toBe('Atendimento a combinar pelo WhatsApp.');
  await page.getByRole('link',{name:'← Voltar à Minha área'}).click();
  await expect(page.locator('.account-offer')).toContainText('Sob orçamento');
+});
+
+test('depois de publicar é possível iniciar outro anúncio com formulário limpo',async({page})=>{
+ await catalog(page);const backend=await seller(page);await fillListing(page,'Primeiro produto de teste');
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
+ const firstRequest=backend.payload().requestId;
+ await page.getByRole('button',{name:'Publicar outro anúncio',exact:true}).click();
+ await expect(page.getByLabel('Nome do produto ou serviço',{exact:true})).toHaveValue('');
+ await page.getByLabel('Nome do produto ou serviço',{exact:true}).fill('Segundo produto de teste');
+ await page.getByLabel('Condição',{exact:true}).selectOption('Usado');
+ await page.locator('input[name=price]').fill('35,00');
+ await page.locator('textarea[name=description]').fill('Descrição do segundo produto para publicar.');
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
+ expect(backend.payload().requestId).not.toBe(firstRequest);
+ expect(backend.payload().title).toBe('Segundo produto de teste');
+});
+
+test('foto inválida substituindo a anterior não envia uma imagem antiga por engano',async({page})=>{
+ await catalog(page);await seller(page);let uploads=0;
+ await page.route('**/api/media-upload?listingId=*',route=>{uploads++;return route.fulfill({contentType:'application/json',body:'{"ok":true}'})});
+ await fillListing(page);
+ const input=page.getByLabel('Foto do produto (opcional)');
+ await input.setInputFiles('tests/fixtures/product-upload.jpg');
+ await expect(page.getByRole('img',{name:'Foto escolhida para o anúncio'})).toBeVisible();
+ await input.setInputFiles({name:'arquivo.txt',mimeType:'text/plain',buffer:Buffer.from('arquivo inválido')});
+ await expect(page.getByRole('alert')).toContainText('Escolha uma foto');
+ await expect(page.getByRole('img',{name:'Foto escolhida para o anúncio'})).toHaveCount(0);
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
+ expect(uploads).toBe(0);
 });
 
 test('detalhe mostra contato somente quando fornecido pela API e oferece cópia manual',async({page})=>{
@@ -201,6 +234,12 @@ test('contato real fornecido gera somente um link sem envio automático',async({
   await catalog(page,[{...items[0],contactWhatsapp:'5592000000000'}]);await page.goto('/#anuncio-101');
   const link=page.getByRole('link',{name:/Conversar no WhatsApp/});await expect(link).toHaveAttribute('href',/^https:\/\/wa.me\/5592000000000\?text=/);
   await expect(link).toHaveAttribute('rel','noopener noreferrer');
+});
+
+test('serviço apresenta atendimento em vez de entrega de produto',async({page})=>{
+ await catalog(page,[{...items[1],fulfillment:'Retirada ou entrega a combinar pelo WhatsApp.'}]);await page.goto('/#anuncio-102');
+ await expect(page.getByRole('heading',{name:'Como será o atendimento?',exact:true})).toBeVisible();
+ await expect(page.locator('.detail-copy')).toContainText('Atendimento a combinar pelo WhatsApp.');
 });
 
 test('admin exige acesso e cadastro apresenta os campos reais',async({page})=>{

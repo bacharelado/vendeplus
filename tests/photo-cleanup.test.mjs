@@ -22,6 +22,6 @@ test('remoção esconde o anúncio e exclui somente sua imagem autenticada',asyn
    return Response.json({result:'ok'});
   };
   const removed=await handleAccount({env,request:new Request(origin+'/api/account/listings/1',{method:'PATCH',headers:{Origin:origin,'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({status:'removed'})})});
-  assert.equal(removed.status,200);assert.deepEqual(await removed.json(),{ok:true});assert.equal(deleted,1);
+  assert.equal(removed.status,200);assert.deepEqual(await removed.json(),{ok:true,status:'removed'});assert.equal(deleted,1);
  }finally{globalThis.fetch=original;sqlite.close()}
 });

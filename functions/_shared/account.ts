@@ -97,11 +97,13 @@ export async function handleAccount(context:Context){
   const own=/^\/listings\/(\d+)$/.exec(path);
   if(own&&request.method==='PATCH'){
    const id=Number(own[1]);if(!Number.isSafeInteger(id)||id<=0)throw new Failure('Anúncio inválido.');
-   const current=await db.prepare("SELECT status,image_url AS image FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
-   if(!current||['removed','rejected'].includes(String(current.status)))throw new Failure('Anúncio não encontrado.',404);
+   const current=await db.prepare("SELECT status,image_url AS image,title,description FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
+   if(!current||current.status==='removed')throw new Failure('Anúncio não encontrado.',404);
    if(data.action==='edit'){
     const values=listingData(data);
-    const status=moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':current.status==='pending'?'published':String(current.status);
+    // Editing cannot reopen a sold/paused listing or bypass an existing review.
+    const status=['sold','paused'].includes(String(current.status))?String(current.status):
+     (['pending','rejected'].includes(String(current.status))||moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':'published');
     // A concurrent removal/moderation decision must not be undone by a stale edit.
     const results=await db.batch([
      db.prepare('UPDATE marketplace_listings SET title=?,description=?,price_cents=?,category=?,condition=?,fulfillment=?,status=? WHERE id=? AND seller_id=? AND status=?').bind(...values,status,id,account.id,current.status),
@@ -115,13 +117,14 @@ export async function handleAccount(context:Context){
    if(data.status==='published'&&current.status!=='paused')throw new Failure('Somente anúncios pausados podem ser reativados.',409);
    if(data.status==='paused'&&current.status!=='published')throw new Failure('Somente anúncios publicados podem ser pausados.',409);
    if(data.status==='sold'&&!['published','paused'].includes(String(current.status)))throw new Failure('O anúncio não pode ser marcado como vendido.',409);
-   const result=await db.prepare('UPDATE marketplace_listings SET status=? WHERE id=? AND seller_id=? AND status=?').bind(data.status,id,account.id,current.status).run();if(!result.meta.changes)throw new Failure('O anúncio mudou. Atualize.',409);
-   await db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,String(data.status)).run();
-   if(data.status==='removed'){
+   const status=data.status==='published'&&moderateOffer(String(current.title),String(current.description))==='review'?'pending':String(data.status);
+   const result=await db.prepare('UPDATE marketplace_listings SET status=? WHERE id=? AND seller_id=? AND status=? AND title=? AND description=?').bind(status,id,account.id,current.status,current.title,current.description).run();if(!result.meta.changes)throw new Failure('O anúncio mudou. Atualize.',409);
+   await db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,status).run();
+   if(status==='removed'){
     try{await removeListingPhoto(db,env,current.image,new URL(request.url).origin,id)}
-    catch{console.error('VENDEPLUS_PHOTO_CLEANUP_PENDING',{listingId:id});return reply({ok:true,warning:'Anúncio removido. A limpeza da foto está pendente.'})}
+    catch{console.error('VENDEPLUS_PHOTO_CLEANUP_PENDING',{listingId:id});return reply({ok:true,status,warning:'Anúncio removido. A limpeza da foto está pendente.'})}
    }
-   return reply({ok:true});
+   return reply({ok:true,status});
   }
   if(path==='/password'&&request.method==='POST'){
     const oldPassword=typeof data.oldPassword==='string'?data.oldPassword:'',newPassword=typeof data.newPassword==='string'?data.newPassword:'';
