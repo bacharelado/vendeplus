@@ -20,6 +20,7 @@ export type Listing = {
   sellerId?:string;
   neighborhood?:string;
   image?:string;
+  videoId?:string;
   fulfillment:string;
   contactWhatsapp?:string;
   status:'PUBLICADO';

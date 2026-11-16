@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {PhotoPicker} from './PhotoAssistant';
+import {videoIdFromUrl,videoWatchUrl} from '../lib/video.mjs';
 import {Button,Field} from './UI';
 import {DraftList} from './DraftList';
 import {categories,type Draft} from '../data/marketplace';
@@ -11,7 +12,7 @@ import {ROUTES,listingHref,sellerHref,publishDraftHref,publishEditHref} from '..
 import {SUPPORT_WHATSAPP_URL} from '../lib/support.mjs';
 
 type Account={id:string;name:string;email:string;neighborhood:string;role:'seller'|'admin';status:string;whatsapp?:string};
-type Offer={id:number;title:string;description:string;priceCents:number|null;status:string;fulfillment:string;category:string;condition:string;neighborhood?:string;seller?:string;whatsapp?:string;sellerStatus?:string};
+type Offer={id:number;title:string;description:string;priceCents:number|null;status:string;fulfillment:string;category:string;condition:string;neighborhood?:string;seller?:string;whatsapp?:string;sellerStatus?:string;videoId?:string|null};
 type Report={id:number;listingId:number;reason:string;details:string;title:string;listingStatus:string;createdAt:number;sellerId?:string};
 type Stats={sellers:number;published:number;reports:number;listings:number};
 type AdminSeller={id:string;name:string;email:string;neighborhood:string;role:string;status:string};
@@ -101,6 +102,8 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
   const form=event.currentTarget,data=Object.fromEntries(new FormData(form));
   const photo=selectedPhoto;
   if(photo&&photoAvailable===undefined){setError('Aguarde um instante enquanto verificamos o envio da foto.');return}
+  const videoUrl=String(data.videoUrl||'').trim();
+  if(videoUrl&&!videoIdFromUrl(videoUrl)){setError('Insira um link válido do YouTube (vídeo ou Shorts).');return}
   const price=parseBRL(data.price,category==='Serviços');if(!price.ok){setError(price.error);return}
   void execute(async()=>{
    const payload={...data,fulfillment:String(data.fulfillment||'').trim()||(category==='Serviços'?'Atendimento a combinar pelo WhatsApp.':'Retirada ou entrega a combinar pelo WhatsApp.'),priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
@@ -168,7 +171,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
     <h2>Denúncias recebidas</h2>
     {reports.length?<div className="draft-stack">{reports.map(report=><article className="panel" key={report.id}><span className="draft-status">{report.reason} · anúncio #{report.listingId}</span><h3>{report.title}</h3><p>{report.details||'Sem detalhes adicionais.'}</p><p>Status: {statuses[report.listingStatus]||report.listingStatus}</p><div className="account-toolbar"><button disabled={busy} className="button outline" onClick={()=>reviewReport(report,'dismissed')}>Arquivar denúncia</button><button disabled={busy} className="button danger" onClick={()=>reviewReport(report,'removed')}>Retirar anúncio</button>{report.sellerId&&<button disabled={busy} className="button outline" onClick={()=>{if(window.confirm('Suspender este vendedor?'))void execute(async()=>{await api('admin/sellers/'+report.sellerId,'POST',{status:'suspended'});await refresh();setNotice('Vendedor suspenso.')})}}>Suspender vendedor</button>}</div></article>)}</div>:<p className="account-notice">Nenhuma denúncia aberta.</p>}
     <h2>Ofertas sinalizadas para revisão</h2>
-    {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">Em verificação</span><h3>{offer.title}</h3><p>{offer.description}</p><p>Vendedor: {offer.seller} · {offer.whatsapp} · {offer.sellerStatus==='approved'?'Contato verificado':'Contato não verificado'}</p><div className="account-toolbar">{offer.sellerStatus==='pending'&&<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Você confirmou que o vendedor controla o WhatsApp?'))void execute(async()=>{await api('moderation/'+offer.id+'/seller','POST',{confirmContact:true});await refresh()})}}>Confirmar vendedor</button>}<button className="button primary" disabled={busy||offer.sellerStatus!=='approved'} onClick={()=>moderate(offer,'published')}>Publicar</button><button className="button outline" disabled={busy} onClick={()=>moderate(offer,'rejected')}>Rejeitar</button></div></article>)}</div>:<p className="account-notice">Nenhuma oferta sinalizada.</p>}
+    {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">Em verificação</span><h3>{offer.title}</h3><p>{offer.description}</p><p>Vendedor: {offer.seller} · {offer.whatsapp} · {offer.sellerStatus==='approved'?'Contato verificado':'Contato não verificado'}</p>{offer.videoId&&videoWatchUrl(offer.videoId)&&<p><a className="text-link" target="_blank" rel="noopener noreferrer" href={videoWatchUrl(offer.videoId)!}>Assistir ao vídeo antes de decidir</a></p>}<div className="account-toolbar">{offer.sellerStatus==='pending'&&<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Você confirmou que o vendedor controla o WhatsApp?'))void execute(async()=>{await api('moderation/'+offer.id+'/seller','POST',{confirmContact:true});await refresh()})}}>Confirmar vendedor</button>}<button className="button primary" disabled={busy||offer.sellerStatus!=='approved'} onClick={()=>moderate(offer,'published')}>Publicar</button><button className="button outline" disabled={busy} onClick={()=>moderate(offer,'rejected')}>Rejeitar</button></div></article>)}</div>:<p className="account-notice">Nenhuma oferta sinalizada.</p>}
    </>:<>
     <p className="account-notice">{account.status==='suspended'?'Conta suspensa.':account.status==='pending'?'Seu contato ainda não foi confirmado pela administração. Você pode gerenciar seus anúncios, mas não informe aos compradores que seu número foi verificado.':'Seus anúncios aparecem aqui. Você pode editar, pausar ou marcar como vendido.'}</p>
     {view==='area'&&<div className="account-toolbar"><a className="button primary" href={ROUTES.publish}>Publicar novo anúncio</a><a className="button outline" href={sellerHref(account.id)}>Meu perfil público</a>{account.role==='admin'&&<a className="button outline" href={ROUTES.admin}>Administração</a>}</div>}
@@ -186,6 +189,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
       <Field label="Categoria"><select name="category" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></Field>
       <Field label="Condição"><select name="condition" aria-label="Condição" required defaultValue={editing?.condition||draft?.condition||''}><option value="" disabled>Selecione o estado</option><option>Novo</option><option>Usado</option><option>Não aplicável</option></select></Field>
      </div>
+     <Field label="Vídeo do produto (opcional)" hint="Cole um link público ou não listado do YouTube ou YouTube Shorts. Não é necessário pagar por armazenamento. Anúncios com vídeo novo passam por revisão."><input name="videoUrl" type="url" maxLength={300} placeholder="https://www.youtube.com/shorts/..." inputMode="url" defaultValue={editing?.videoId?videoWatchUrl(editing.videoId)||'':''}/></Field>
      <Field label="Descrição" hint="Conte o estado, os detalhes e o que está incluído."><textarea name="description" placeholder="Ex.: Mesa usada, bem conservada, com quatro cadeiras." required minLength={10} maxLength={2000} defaultValue={editing?.description||draft?.description}/></Field>
      <Field label={category==='Serviços'?'Atendimento (opcional)':'Entrega ou retirada (opcional)'} hint="Se deixar em branco, vocês combinam pelo WhatsApp."><input name="fulfillment" placeholder={category==='Serviços'?'Ex.: Atendimento remoto ou no local':'Ex.: Retirada no Poranga II'} maxLength={180} defaultValue={editing?.fulfillment||draft?.fulfillment}/></Field>
      <div className="contact-summary"><strong>WhatsApp para receber interessados</strong><span>{account.whatsapp||'O número cadastrado na sua conta'}</span><small>O contato da sua conta acompanha o anúncio automaticamente.</small></div>

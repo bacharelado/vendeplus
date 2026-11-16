@@ -5,7 +5,7 @@ const policy = [
   "frame-ancestors 'none'", "form-action 'self'", "script-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com", "img-src 'self' https: data: blob:",
-  "connect-src 'self'", "frame-src https://drive.google.com", "worker-src 'none'"
+  "connect-src 'self'", "frame-src https://drive.google.com https://www.youtube-nocookie.com", "worker-src 'none'"
 ].join('; ');
 
 export async function onRequest({request, next}: PagesContext): Promise<Response> {
