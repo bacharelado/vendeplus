@@ -1,4 +1,5 @@
 import {normalizeWhatsapp} from '../../src/lib/phone.mjs';
+import {videoIdFromUrl} from '../../src/lib/video.mjs';
 import {randomBytes,scrypt,timingSafeEqual,createHash} from 'node:crypto';
 import {handlePasswordReset} from './password-reset.ts';
 import {moderateOffer} from './moderation.ts';
@@ -12,6 +13,14 @@ type Context={request:Request;env:PhotoEnv&{MARKETPLACE_DB?:Database};waitUntil?
 const neighborhoods=['Poranga I','Poranga II','Jacarezinho'];
 const categories=['Alimentação','Moda','Eletrônicos','Casa','Beleza','Serviços'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
+function listingVideo(data:Row){
+ const raw=data.videoUrl===undefined?'':data.videoUrl;
+ if(typeof raw!=='string'||raw.length>300)throw new Failure('Link de vídeo inválido.');
+ if(!raw.trim())return null;
+ const id=videoIdFromUrl(raw);
+ if(!id)throw new Failure('Use um link HTTPS válido de vídeo do YouTube.');
+ return id;
+}
 const derive=(password:string,salt:string)=>new Promise<Buffer>((resolve,reject)=>scrypt(password,salt,32,{N:16384,r:8,p:5,maxmem:32*1024*1024},(error,key)=>error?reject(error):resolve(key)));
 export async function passwordHash(password:string){const salt=randomBytes(16).toString('hex');return `scrypt-16384-8-5$${salt}$${(await derive(password,salt)).toString('hex')}`}
 export async function passwordMatches(password:string,encoded:string){const [algorithm,salt,key]=encoded.split('$');if(algorithm!=='scrypt-16384-8-5'||!salt||!key||!/^[a-f0-9]{64}$/.test(key))return false;return timingSafeEqual(await derive(password,salt),Buffer.from(key,'hex'))}
@@ -71,17 +80,17 @@ export async function handleAccount(context:Context){
   if(path==='/logout'&&request.method==='POST'){await db.prepare('DELETE FROM marketplace_sessions WHERE token_hash=?').bind(hash(tokenFrom(request))).run();return reply({ok:true},200,{'Set-Cookie':cookie('',0)})}
   const account=await session(db,request);if(!account)throw new Failure('Entre na sua conta para continuar.',401);
   if(path==='/listings'&&request.method==='GET'){
-   const result=await db.prepare('SELECT l.id,l.title,l.description,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,l.status,d.neighborhood FROM marketplace_listings l LEFT JOIN marketplace_listing_details d ON d.listing_id=l.id WHERE l.seller_id=? AND l.status!=\'removed\' ORDER BY l.created_at DESC,l.id DESC LIMIT 200').bind(account.id).all();
+   const result=await db.prepare('SELECT l.id,l.title,l.description,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,l.status,l.video_id AS videoId,d.neighborhood FROM marketplace_listings l LEFT JOIN marketplace_listing_details d ON d.listing_id=l.id WHERE l.seller_id=? AND l.status!=\'removed\' ORDER BY l.created_at DESC,l.id DESC LIMIT 200').bind(account.id).all();
    return reply({listings:result.results});
   }
   if(path==='/listings'&&request.method==='POST'){
-   const values=listingData(data),requestId=text(data.requestId,32,36);if(!/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(requestId))throw new Failure('Identificador da solicitação inválido.');
+   const values=listingData(data),videoId=listingVideo(data),requestId=text(data.requestId,32,36);if(!/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(requestId))throw new Failure('Identificador da solicitação inválido.');
    const previous=await db.prepare('SELECT l.id,l.status FROM marketplace_listings l JOIN marketplace_listing_details d ON d.listing_id=l.id WHERE d.seller_id=? AND d.request_id=?').bind(account.id,requestId).first();if(previous)return reply({id:previous.id,status:previous.status});
    await rate(db,`listing:${account.id}`,10);
    const count=await db.prepare("SELECT count(*) AS total FROM marketplace_listings WHERE seller_id=? AND status NOT IN ('removed','sold')").bind(account.id).first();if(Number(count?.total)>=50)throw new Failure('Você atingiu o limite de 50 anúncios ativos.',409);
    const id=Number.parseInt(randomBytes(6).toString('hex'),16);
-   const status=moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':'published';
-   await db.batch([db.prepare("INSERT INTO marketplace_listings(id,seller_id,title,description,price_cents,category,condition,fulfillment,status) VALUES (?,?,?,?,?,?,?,?,?)").bind(id,account.id,...values,status),db.prepare('INSERT INTO marketplace_listing_details(listing_id,neighborhood,request_id,seller_id) VALUES (?,?,?,?)').bind(id,data.neighborhood,requestId,account.id),db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,status==='published'?'auto_published':'flagged_for_review')]);
+   const status=videoId||moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':'published';
+   await db.batch([db.prepare("INSERT INTO marketplace_listings(id,seller_id,title,description,price_cents,category,condition,fulfillment,video_id,status) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(id,account.id,...values,videoId,status),db.prepare('INSERT INTO marketplace_listing_details(listing_id,neighborhood,request_id,seller_id) VALUES (?,?,?,?)').bind(id,data.neighborhood,requestId,account.id),db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,status==='published'?'auto_published':'flagged_for_review')]);
    return reply({id,status},201);
   }
   if(path==='/profile'&&request.method==='GET'){
@@ -97,16 +106,16 @@ export async function handleAccount(context:Context){
   const own=/^\/listings\/(\d+)$/.exec(path);
   if(own&&request.method==='PATCH'){
    const id=Number(own[1]);if(!Number.isSafeInteger(id)||id<=0)throw new Failure('Anúncio inválido.');
-   const current=await db.prepare("SELECT status,image_url AS image,title,description FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
+   const current=await db.prepare("SELECT status,image_url AS image,title,description,video_id AS videoId FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
    if(!current||current.status==='removed')throw new Failure('Anúncio não encontrado.',404);
    if(data.action==='edit'){
-    const values=listingData(data);
+    const values=listingData(data),videoId=listingVideo(data);
     // Editing cannot reopen a sold/paused listing or bypass an existing review.
     const status=['sold','paused'].includes(String(current.status))?String(current.status):
-     (['pending','rejected'].includes(String(current.status))||moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':'published');
+     (['pending','rejected'].includes(String(current.status))||(videoId!==current.videoId&&!!videoId)||moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':'published');
     // A concurrent removal/moderation decision must not be undone by a stale edit.
     const results=await db.batch([
-     db.prepare('UPDATE marketplace_listings SET title=?,description=?,price_cents=?,category=?,condition=?,fulfillment=?,status=? WHERE id=? AND seller_id=? AND status=?').bind(...values,status,id,account.id,current.status),
+     db.prepare('UPDATE marketplace_listings SET title=?,description=?,price_cents=?,category=?,condition=?,fulfillment=?,video_id=?,status=? WHERE id=? AND seller_id=? AND status=?').bind(...values,videoId,status,id,account.id,current.status),
      db.prepare('UPDATE marketplace_listing_details SET neighborhood=? WHERE listing_id=? AND seller_id=? AND changes()=1').bind(data.neighborhood,id,account.id),
      db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) SELECT ?,?,? WHERE changes()=1').bind(id,account.id,'edited')
     ]);
