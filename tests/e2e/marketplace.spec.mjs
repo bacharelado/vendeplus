@@ -5,7 +5,7 @@ const items=[
 ];
 async function catalog(page,listings=[]){await page.route('**/api/account/session',route=>route.fulfill({contentType:'application/json',body:'{"account":null}'}));await page.route('**/api/listings**',route=>{const id=new URL(route.request().url()).searchParams.get('id');return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({listings:id?listings.filter(item=>item.id===Number(id)):listings})})})}
 const account={id:'00000000-0000-4000-8000-000000000001',name:'Conta de teste',email:'teste@example.invalid',neighborhood:'Poranga II',role:'seller',status:'pending',whatsapp:'5592000000000'};
-async function seller(page,{signedIn=true}={}){
+async function seller(page,{signedIn=true,status='published'}={}){
  let authenticated=signedIn,offers=[],sent;
  let profile={name:account.name,bio:''};
  const json=(route,body,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
@@ -15,7 +15,7 @@ async function seller(page,{signedIn=true}={}){
  await page.route('**/api/account/profile',route=>{if(route.request().method()==='PATCH')profile={...profile,...route.request().postDataJSON()};return json(route,{profile})});
  await page.route('**/api/account/listings',route=>{
   if(route.request().method()==='POST'){
-   sent=route.request().postDataJSON();offers=[{...sent,id:123,status:'published'}];return json(route,{id:123,status:'published'},201);
+   sent=route.request().postDataJSON();offers=[{...sent,id:123,status}];return json(route,{id:123,status},201);
   }
   return json(route,{listings:offers});
  });
@@ -159,6 +159,58 @@ test('exclusão de rascunho exige confirmação e persiste após recarregar',asy
  await page.locator('.draft-card').getByRole('button',{name:'Excluir',exact:true}).click();
  await expect(page.locator('.draft-card')).toHaveCount(0);
  await page.reload();await expect(page.locator('.draft-card')).toHaveCount(0);
+});
+
+for(const status of ['published','pending']){
+ test(`rascunho enviado como ${status} é consumido sem remover os demais`,async({page})=>{
+  await catalog(page);await seller(page,{status});
+  await page.addInitScript(drafts=>{
+   if(localStorage.getItem('vendeplus:drafts:v1')===null)localStorage.setItem('vendeplus:drafts:v1',JSON.stringify(drafts));
+  },[oldDraft,{...oldDraft,id:'draft-kept',title:'Rascunho que deve permanecer'}]);
+  await page.goto('/#area');
+  await page.locator('.draft-card').filter({hasText:oldDraft.title}).getByRole('link',{name:'Continuar anúncio'}).click();
+  await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'Anúncio salvo.'})).toBeVisible();
+  await page.getByRole('link',{name:'← Voltar à Minha área'}).click();
+  await expect(page.locator('.draft-card')).toHaveCount(1);
+  await expect(page.locator('.draft-card')).toContainText('Rascunho que deve permanecer');
+  await page.reload();
+  await expect(page.locator('.draft-card')).toHaveCount(1);
+  await expect(page.locator('.draft-card')).toContainText('Rascunho que deve permanecer');
+ });
+}
+
+test('falha ao criar anúncio preserva o rascunho para nova tentativa',async({page})=>{
+ await catalog(page);await seller(page);await seedDraft(page);
+ await page.route('**/api/account/listings',route=>route.fulfill({
+  status:route.request().method()==='POST'?503:200,contentType:'application/json',
+  body:route.request().method()==='POST'?'{"error":"Falha temporária ao publicar."}':'{"listings":[]}'
+ }));
+ await page.goto('/#publicar?rascunho=draft-test');
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('Falha temporária ao publicar');
+ await page.getByRole('link',{name:'← Voltar à Minha área'}).click();
+ await expect(page.locator('.draft-card')).toHaveCount(1);
+ await expect(page.locator('.draft-card')).toContainText(oldDraft.title);
+});
+
+test('falha ao limpar rascunho mantém a publicação confirmada e avisa o vendedor',async({page})=>{
+ await catalog(page);await seller(page);
+ await page.addInitScript(draft=>{
+  if(localStorage.getItem('vendeplus:drafts:v1')===null)localStorage.setItem('vendeplus:drafts:v1',JSON.stringify([draft]));
+  const setItem=Storage.prototype.setItem;
+  Storage.prototype.setItem=function(key,value){
+   if(key==='vendeplus:drafts:v1'&&this.getItem(key)!==null)throw new DOMException('Storage indisponível','QuotaExceededError');
+   return setItem.call(this,key,value);
+  };
+ },oldDraft);
+ await page.goto('/#publicar?rascunho=draft-test');
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ const notice=page.getByRole('status').filter({hasText:'Anúncio salvo.'});
+ await expect(notice).toContainText('Não foi possível remover o rascunho');
+ await expect(page.getByRole('alert')).toHaveCount(0);
+ await expect(page.locator('.seller-listing-form')).toHaveCount(0);
+ await expect(page.getByRole('link',{name:'Ver meu anúncio na vitrine →'})).toHaveAttribute('href','#anuncio-123');
 });
 
 test('preço inválido e falha de publicação preservam o formulário sem sucesso falso',async({page})=>{
@@ -440,9 +492,9 @@ test('bairro e preço combinam com a busca, e limpar texto preserva o bairro',as
 test('player externo só carrega quando solicitado',async({page})=>{
  await catalog(page);await page.route('https://drive.google.com/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Player de teste</title>'}));
  await page.goto('/');
- await expect(page.locator('.apocalyptic-player iframe')).toHaveCount(0);
- await page.getByRole('button',{name:'Reproduzir vídeo da APOCALYPTIC'}).click();
- await expect(page.locator('.apocalyptic-player iframe')).toHaveAttribute('src',/^https:\/\/drive.google.com\/file\/d\/.+\/preview$/);
+ await expect(page.locator('.vsl-player iframe')).toHaveCount(0);
+ await page.getByRole('button',{name:'Reproduzir apresentação da APOCALYPTIC'}).click();
+ await expect(page.locator('.vsl-player iframe')).toHaveAttribute('src',/^https:\/\/drive.google.com\/file\/d\/.+\/preview$/);
 });
 
 test('edição salva uma vez e não reabre o formulário após atualizar a lista',async({page})=>{

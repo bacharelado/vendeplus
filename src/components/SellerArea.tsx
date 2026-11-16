@@ -5,7 +5,7 @@ import {DraftList} from './DraftList';
 import {categories,type Draft} from '../data/marketplace';
 import {formatBRL,parseBRL} from '../lib/pricing.mjs';
 import {normalizeWhatsapp} from '../lib/phone.mjs';
-import {createDraftId,readDrafts} from '../lib/drafts.mjs';
+import {createDraftId,readDrafts,writeDrafts} from '../lib/drafts.mjs';
 import {listingNotice} from '../lib/listing-notice.mjs';
 import {ROUTES,listingHref,sellerHref,publishDraftHref,publishEditHref} from '../lib/routes.mjs';
 import {SUPPORT_WHATSAPP_URL} from '../lib/support.mjs';
@@ -105,6 +105,11 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
    const payload={...data,fulfillment:String(data.fulfillment||'').trim()||(category==='Serviços'?'Atendimento a combinar pelo WhatsApp.':'Retirada ou entrega a combinar pelo WhatsApp.'),priceCents:price.cents,...(editing?{action:'edit'}:{requestId})};
    const result=await api(editing?'listings/'+editing.id:'listings',editing?'PATCH':'POST',payload);
    const id=editing?.id||Number(result.id);
+   let draftNotice='';
+   if(!editing&&draft){
+    try{const saved=readDrafts(localStorage);if(saved.some(item=>item.id===draft.id))writeDrafts(localStorage,saved.filter(item=>item.id!==draft.id))}
+    catch{draftNotice=' Não foi possível remover o rascunho deste navegador. Exclua-o em Minha área para evitar publicar novamente.'}
+   }
    let photoNotice=photo&&photoAvailable===false?' O anúncio foi salvo sem foto porque o envio de imagens está indisponível.':'';
    setPhotoRetry(null);
    if(photo&&photo.size&&photoAvailable){
@@ -114,7 +119,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
    }
    setRequestId(createDraftId());setShowForm(false);setEditing(null);setSelectedPhoto(null);
    setLastPublished(result.status==='published'?id:null);
-   const savedNotice=listingNotice(result.status)+photoNotice;
+   const savedNotice=listingNotice(result.status)+photoNotice+draftNotice;
    setNotice(savedNotice);
    try{await refresh()}catch{setNotice(savedNotice+' Não foi possível atualizar sua lista. Consulte Minha área novamente.')}
   });
