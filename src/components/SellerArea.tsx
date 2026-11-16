@@ -58,6 +58,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(view==='publicar'||!!draft||startNew),[editing,setEditing]=useState<Offer|null>(null);
  const [profileName,setProfileName]=useState(''),[bio,setBio]=useState('');
  const [lastPublished,setLastPublished]=useState<number|null>(null);
+ const [offerFilter,setOfferFilter]=useState('all'),[offerQuery,setOfferQuery]=useState('');
  const [photoRetry,setPhotoRetry]=useState<{id:number;file:File}|null>(null);
  const initializedEdit=useRef<number|undefined>(undefined);
  const [readyAccount,setReadyAccount]=useState<string|null>(null);
@@ -133,6 +134,9 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
  const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh(true);setNotice('Perfil atualizado.')})};
+ const counts={published:offers.filter(item=>item.status==='published').length,paused:offers.filter(item=>item.status==='paused').length,sold:offers.filter(item=>item.status==='sold').length,pending:offers.filter(item=>item.status==='pending').length};
+ const visibleOffers=offers.filter(item=>(offerFilter==='all'||item.status===offerFilter)&&item.title.toLocaleLowerCase('pt-BR').includes(offerQuery.trim().toLocaleLowerCase('pt-BR')));
+ const filters=[{id:'all',label:'Todos'},{id:'published',label:'Publicados'},{id:'paused',label:'Pausados'},{id:'sold',label:'Vendidos'},{id:'pending',label:'Em análise'},{id:'rejected',label:'Não aprovados'}];
  if(loading||!account&&!admin&&(view==='publicar'||view==='area')||account&&(!admin||account.role==='admin')&&readyAccount!==account.id)return <div className="catalog-loading" role="status">Carregando sua conta…</div>;
  return <section className="account-area">
   <div className="page-heading"><span className="eyebrow">VENDE+ · Poranga e Jacarezinho</span><h1>{admin?'Administração do site.':view==='publicar'?(editId?'Editar anúncio.':'Publicar anúncio.'):view==='area'?'Minha área.':register?'Crie sua conta.':'Entre na sua conta.'}</h1><p>{account?'Olá, '+account.name+'.':register?'Use nome, e-mail, bairro e WhatsApp para criar sua conta. Depois, adicione o produto e publique.':'Entre para publicar e gerenciar seus anúncios. Quem compra não precisa de conta.'}</p></div>
@@ -189,8 +193,35 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
      <div className="publish-actions"><Button type="submit" full disabled={busy}>{busy?'Salvando…':editing?'Salvar alterações':'Publicar anúncio'}</Button></div>
      {editing&&<button type="button" className="button outline" disabled={busy} onClick={()=>{location.hash=ROUTES.account}}>Cancelar edição</button>}
     </form>}
-    {view==='area'&&<><h2>Meus anúncios</h2>
-    {offers.length?<div className="draft-stack">{offers.map(offer=><article className="panel account-offer" key={offer.id}><span className="draft-status">{statuses[offer.status]||offer.status}</span><h3>{offer.title}</h3><strong>{formatBRL(offer.priceCents)}</strong><p>{offer.description}</p><p>{offer.fulfillment}</p><div className="account-toolbar"><button className="button outline" onClick={()=>edit(offer)} disabled={busy}>Editar</button>{offer.status==='published'&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'paused')}>Pausar</button>}{offer.status==='paused'&&<button className="button primary" disabled={busy} onClick={()=>update(offer,'published')}>Reativar</button>}{['published','paused'].includes(offer.status)&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'sold')}>Marcar vendido</button>}<button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Remover este anúncio?'))update(offer,'removed')}}>Remover</button></div></article>)}</div>:<p className="account-notice">Você ainda não publicou nenhum anúncio.</p>}
+    {view==='area'&&<>
+    <section className="seller-dashboard" aria-labelledby="seller-dashboard-title">
+      <div className="seller-dashboard-heading"><div><span className="eyebrow">VENDE+ SELLER</span><h2 id="seller-dashboard-title">Visão geral dos seus anúncios</h2><p>Organize suas ofertas e acompanhe o que está publicado.</p></div><a className="button primary" href={ROUTES.publish}>+ Novo anúncio</a></div>
+      <div className="seller-metric-grid" aria-label="Resumo das ofertas">
+        <div className="seller-metric"><strong>{counts.published}</strong><span>Publicados</span></div>
+        <div className="seller-metric"><strong>{counts.paused}</strong><span>Pausados</span></div>
+        <div className="seller-metric"><strong>{counts.sold}</strong><span>Marcados vendidos</span></div>
+        <div className="seller-metric"><strong>{counts.pending}</strong><span>Em análise</span></div>
+      </div>
+      <p className="seller-metric-note">Estes números vêm dos seus anúncios; ainda não medem visualizações, conversas iniciadas ou vendas confirmadas.</p>
+      <div className="seller-dashboard-controls">
+        <label className="seller-search">Buscar meus anúncios<input type="search" placeholder="Nome do produto ou serviço" value={offerQuery} onChange={event=>setOfferQuery(event.target.value)} maxLength={90}/></label>
+        <div className="seller-filter-group" role="group" aria-label="Filtrar anúncios por situação">{filters.map(item=><button type="button" key={item.id} className="seller-filter" aria-pressed={offerFilter===item.id} onClick={()=>setOfferFilter(item.id)}>{item.label}</button>)}</div>
+      </div>
+      <div className="seller-list-title"><h2>Meus anúncios</h2><span role="status">{visibleOffers.length} {visibleOffers.length===1?'resultado':'resultados'}</span></div>
+      {visibleOffers.length?<div className="draft-stack">{visibleOffers.map(offer=><article className="panel account-offer" key={offer.id}>
+        <div className="seller-offer-top"><span className="draft-status">{statuses[offer.status]||offer.status}</span><span className="seller-offer-price">{formatBRL(offer.priceCents)}</span></div>
+        <h3>{offer.title}</h3><p className="seller-offer-description">{offer.description}</p>
+        <div className="seller-offer-meta"><span>{offer.neighborhood||account.neighborhood}</span><span>{offer.category}</span></div>
+        <div className="seller-offer-actions">
+          <button className="button outline" onClick={()=>edit(offer)} disabled={busy}>Editar</button>
+          {offer.status==='published'&&<a className="button outline" href={listingHref(offer.id)}>Ver na vitrine</a>}
+          {offer.status==='published'&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'paused')}>Pausar</button>}
+          {offer.status==='paused'&&<button className="button primary" disabled={busy} onClick={()=>update(offer,'published')}>Reativar</button>}
+          {['published','paused'].includes(offer.status)&&<button className="button outline" disabled={busy} onClick={()=>update(offer,'sold')}>Marcar vendido</button>}
+          <button className="button outline" disabled={busy} onClick={()=>{if(window.confirm('Remover este anúncio?'))update(offer,'removed')}}>Remover</button>
+        </div>
+      </article>)}</div>:<div className="panel seller-empty">{offers.length?'Nenhum anúncio corresponde à sua busca ou filtro.':'Você ainda não publicou nenhum anúncio.'}{offers.length&&<button type="button" className="button outline" onClick={()=>{setOfferFilter('all');setOfferQuery('')}}>Limpar filtros</button>}</div>}
+    </section>
     <DraftList/>
     <details className="panel profile-settings"><summary>Editar meu perfil público</summary><form className="draft-form profile-form" onSubmit={saveProfile}><h2>Editar meu perfil público</h2><label>Nome comercial<input value={profileName} onChange={e=>setProfileName(e.target.value)} minLength={2} maxLength={80} required/></label><label>Sobre você ou seu negócio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength={600}/></label><Button type="submit" disabled={busy}>Salvar perfil</Button></form></details></>}
    </>}
