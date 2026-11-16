@@ -5,8 +5,9 @@ import {readFile} from 'node:fs/promises';
 import {handleAccount,passwordHash,passwordMatches} from '../functions/_shared/account.ts';
 import {catalogQuery} from '../functions/_shared/catalog-query.ts';
 const migrations=(await Promise.all(['0001_marketplace','0002_accounts','0003_vendeplus_2'].map(name=>readFile(new URL('../migrations/'+name+'.sql',import.meta.url),'utf8')))).join('\n');
+const videoMigration=await readFile(new URL('../migrations/0005_seller_video.sql',import.meta.url),'utf8');
 function harness(){
- const sqlite=new DatabaseSync(':memory:');sqlite.exec(migrations);sqlite.exec(migrations);
+ const sqlite=new DatabaseSync(':memory:');sqlite.exec(migrations);sqlite.exec(migrations);sqlite.exec(videoMigration);
  const db={prepare(sql){let values=[];const stmt={bind(...args){values=args;return stmt},async first(){return sqlite.prepare(sql).get(...values)||null},async all(){return {results:sqlite.prepare(sql).all(...values)}},async run(){return {meta:sqlite.prepare(sql).run(...values)}}};return stmt},async batch(statements){sqlite.exec('BEGIN');try{const result=[];for(const stmt of statements)result.push(await stmt.run());sqlite.exec('COMMIT');return result}catch(error){sqlite.exec('ROLLBACK');throw error}}};
  const request=async(path,method='GET',data,cookie='',extra={})=>{const response=await handleAccount({request:new Request('https://preview.vendeplus.pages.dev/api/account/'+path,{method,headers:{Origin:'https://preview.vendeplus.pages.dev','Content-Type':'application/json',Cookie:cookie,...extra},body:data===undefined?undefined:JSON.stringify(data)}),env:{MARKETPLACE_DB:db}});return {status:response.status,body:await response.json(),cookie:response.headers.get('Set-Cookie'),headers:response.headers}};
  return {sqlite,request};

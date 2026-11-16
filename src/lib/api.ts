@@ -9,7 +9,8 @@ export function decodeListings(payload:unknown):Listing[]{
     if(item.priceCents!==null&&(!Number.isSafeInteger(item.priceCents)||Number(item.priceCents)<=0))throw new Error('Preço inválido');
     const image=typeof item.image==='string'&&/^https:\/\//i.test(item.image)?item.image:undefined;
     const contactWhatsapp=typeof item.contactWhatsapp==='string'&&/^55\d{10,11}$/.test(item.contactWhatsapp)?item.contactWhatsapp:undefined;
-    return {...item,image,contactWhatsapp} as Listing;
+    const videoId=typeof item.videoId==='string'&&/^[A-Za-z0-9_-]{11}$/.test(item.videoId)?item.videoId:undefined;
+    return {...item,image,videoId,contactWhatsapp} as Listing;
   });
 }
 export async function fetchCatalog(signal:AbortSignal):Promise<Listing[]>{

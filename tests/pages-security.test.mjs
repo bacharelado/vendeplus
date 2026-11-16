@@ -32,7 +32,7 @@ test('applies security headers to Pages responses and preserves existing headers
   assert.match(policy, /https:\/\/fonts\.googleapis\.com/);
   assert.match(policy, /https:\/\/fonts\.gstatic\.com/);
   assert.match(policy, /img-src 'self' https:/);
-  assert.match(policy, /frame-src https:\/\/drive\.google\.com(?:;|$)/);
+  assert.match(policy, /frame-src https:\/\/drive\.google\.com https:\/\/www\.youtube-nocookie\.com(?:;|$)/);
   assert.doesNotMatch(policy, /script-src[^;]*(?:unsafe-inline|unsafe-eval|https:)/);
 });
 
