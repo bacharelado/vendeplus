@@ -37,6 +37,9 @@ test('link com vídeo exige moderação e é listado com ID ao dono e ao públic
  sqlite.prepare("UPDATE marketplace_listings SET status='published' WHERE id=?").run(result.id);
  const pub=await (await publicListings({request:catalogReq,env:{MARKETPLACE_DB:db}})).json();
  assert.equal(pub.listings[0].videoId,id);
+ const legacy=await request({...payload,action:'edit',videoUrl:undefined},'PATCH','/'+result.id);
+ assert.equal(legacy.status,200);
+ assert.equal(sqlite.prepare('SELECT video_id FROM marketplace_listings WHERE id=?').get(result.id).video_id,id);
  const edited=await request({...payload,action:'edit',videoUrl:''},'PATCH','/'+result.id);assert.equal(edited.status,200);
  assert.equal(sqlite.prepare('SELECT video_id FROM marketplace_listings WHERE id=?').get(result.id).video_id,null);
 });

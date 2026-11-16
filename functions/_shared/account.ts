@@ -109,7 +109,7 @@ export async function handleAccount(context:Context){
    const current=await db.prepare("SELECT status,image_url AS image,title,description,video_id AS videoId FROM marketplace_listings WHERE id=? AND seller_id=?").bind(id,account.id).first();
    if(!current||current.status==='removed')throw new Failure('Anúncio não encontrado.',404);
    if(data.action==='edit'){
-    const values=listingData(data),videoId=listingVideo(data);
+    const values=listingData(data),videoId=data.videoUrl===undefined?(typeof current.videoId==='string'?current.videoId:null):listingVideo(data);
     // Editing cannot reopen a sold/paused listing or bypass an existing review.
     const status=['sold','paused'].includes(String(current.status))?String(current.status):
      (['pending','rejected'].includes(String(current.status))||(videoId!==current.videoId&&!!videoId)||moderateOffer(String(values[0]),String(values[1]))==='review'?'pending':'published');
