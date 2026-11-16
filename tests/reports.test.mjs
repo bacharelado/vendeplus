@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
 import {onRequest} from '../functions/api/reports.ts';
-const files=['0001_marketplace','0002_accounts','0003_vendeplus_2'];
+const files=['0001_marketplace','0002_accounts','0003_vendeplus_2','0005_seller_video'];
 const migration=(await Promise.all(files.map(name=>readFile(new URL('../migrations/'+name+'.sql',import.meta.url),'utf8')))).join('\n');
 function setup(){
  const sqlite=new DatabaseSync(':memory:');sqlite.exec(migration);

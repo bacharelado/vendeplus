@@ -126,7 +126,7 @@ export async function handleAccount(context:Context){
    if(data.status==='published'&&current.status!=='paused')throw new Failure('Somente anúncios pausados podem ser reativados.',409);
    if(data.status==='paused'&&current.status!=='published')throw new Failure('Somente anúncios publicados podem ser pausados.',409);
    if(data.status==='sold'&&!['published','paused'].includes(String(current.status)))throw new Failure('O anúncio não pode ser marcado como vendido.',409);
-   const status=data.status==='published'&&moderateOffer(String(current.title),String(current.description))==='review'?'pending':String(data.status);
+   const status=data.status==='published'&&(!!current.videoId||moderateOffer(String(current.title),String(current.description))==='review')?'pending':String(data.status);
    const result=await db.prepare('UPDATE marketplace_listings SET status=? WHERE id=? AND seller_id=? AND status=? AND title=? AND description=?').bind(status,id,account.id,current.status,current.title,current.description).run();if(!result.meta.changes)throw new Failure('O anúncio mudou. Atualize.',409);
    await db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,status).run();
    if(status==='removed'){
@@ -211,7 +211,7 @@ export async function handleAccount(context:Context){
   }
   if(path.startsWith('/moderation')){
    if(account.role!=='admin')throw new Failure('Acesso restrito à administração.',403);
-   if(path==='/moderation'&&request.method==='GET')return reply({listings:(await db.prepare("SELECT l.id,l.title,l.description,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,s.display_name AS seller,s.whatsapp,s.status AS sellerStatus FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status='pending' ORDER BY l.created_at LIMIT 100").all()).results});
+   if(path==='/moderation'&&request.method==='GET')return reply({listings:(await db.prepare("SELECT l.id,l.title,l.description,l.video_id AS videoId,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,s.display_name AS seller,s.whatsapp,s.status AS sellerStatus FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status='pending' ORDER BY l.created_at LIMIT 100").all()).results});
    const sellerReview=/^\/moderation\/(\d+)\/seller$/.exec(path);
    if(sellerReview&&request.method==='POST'){
     if(data.confirmContact!==true)throw new Failure('Confirme a revisão do cadastro e a propriedade do WhatsApp.');

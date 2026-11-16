@@ -77,6 +77,13 @@ Os testes devem evitar alterações em contas/anúncios reais. Testes de integra
 - Anúncios comuns podem ser publicados automaticamente; um filtro simples sinaliza alguns conteúdos para revisão. **Isso não é verificação de vendedor, certificação antifraude ou garantia de negociação.**
 - Cotas do piloto de Cloudinary: 10 tentativas a cada 15 minutos; 15 novos uploads por conta e 200 uploads globais a cada 30 dias. O uso de banda também gera consumo e deve ser acompanhado.
 
+## Anúncios em vídeo (implantação em etapas)
+
+- A primeira etapa permite associar **um link HTTPS do YouTube ou Shorts** a cada anúncio, sem hospedar vídeos no VENDE+ e sem contratar plano pago.
+- Um vídeo novo torna a oferta **pendente de moderação**, para conferência pela administração. O comprador só carrega o player quando toca em **Assistir**.
+- A gravação depende da coluna `video_id`. **Antes de publicar esta mudança na branch main**, executar a migração `migrations/0005_seller_video.sql` no D1 de prévia e depois no D1 de produção, respeitando o processo de backup/alteração do banco. Uma prévia sem a migração pode falhar ao ler anúncios. Não executar automaticamente em bases reais.
+- O envio direto de arquivo de vídeo, métricas de visualização e cliques em WhatsApp ainda não estão incluídos nesta etapa.
+
 ## Pendências abertas
 
 1. Ferramenta segura de redefinição para pedidos recebidos no WhatsApp, com verificação de titularidade e auditoria; o contato já está disponível no login.
