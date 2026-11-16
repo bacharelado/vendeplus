@@ -1,0 +1,28 @@
+name: VENDE+ — Migrar vídeo com segurança
+on:
+  push:
+    branches: [feat/seller-dashboard-video-20261116]
+    paths:
+      - .github/workflows/seller-video-migration.yml
+      - scripts/migrate-seller-video.mjs
+permissions:
+  contents: read
+concurrency:
+  group: vendeplus-migracao-video
+  cancel-in-progress: false
+jobs:
+  migrar:
+    if: github.ref == 'refs/heads/feat/seller-dashboard-video-20261116'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Conferir bases separadas, pontos de recuperação e aplicar coluna incremental
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/migrate-seller-video.mjs
