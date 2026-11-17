@@ -56,7 +56,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  const [sellers,setSellers]=useState<AdminSeller[]>([]),[allListings,setAllListings]=useState<AdminListing[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [category,setCategory]=useState<string>(draft?.category||'Alimentação'),[requestId,setRequestId]=useState(createDraftId),[showForm,setShowForm]=useState(view==='publicar'||!!draft||startNew),[editing,setEditing]=useState<Offer|null>(null);
- const [profileName,setProfileName]=useState(''),[bio,setBio]=useState('');
+ const [profileName,setProfileName]=useState(''),[bio,setBio]=useState(''),[profileSlug,setProfileSlug]=useState(''),[sellerType,setSellerType]=useState<'person'|'business'>('person'),[businessName,setBusinessName]=useState('');
  const [lastPublished,setLastPublished]=useState<number|null>(null);
  const [offerFilter,setOfferFilter]=useState('all'),[offerQuery,setOfferQuery]=useState('');
  const [photoRetry,setPhotoRetry]=useState<{id:number;file:File}|null>(null);
@@ -68,7 +68,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
    setOffers(pending.listings);setReports(queue.reports);setStats(overview);setSellers(people.sellers);setAllListings(listingRows.listings);
   }else{
    const [items,profile]=await Promise.all([api('listings'),loadProfile?api('profile'):Promise.resolve(null)]);
-   setOffers(items.listings);if(profile){setProfileName(profile.profile.name);setBio(profile.profile.bio||'')}
+   setOffers(items.listings);if(profile){setProfileName(profile.profile.name);setBio(profile.profile.bio||'');setProfileSlug(profile.profile.slug||'');setSellerType(profile.profile.sellerType==='business'?'business':'person');setBusinessName(profile.profile.businessName||'')}
   }
  };
  useEffect(()=>{let active=true;api('session').then(value=>{if(active)setAccount(value.account)}).catch(reason=>{if(active)setError(reason.message)}).finally(()=>{if(active)setLoading(false)});return ()=>{active=false}},[]);
@@ -133,7 +133,7 @@ export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,st
  const update=(offer:Offer,status:string)=>void execute(async()=>{const result=await api('listings/'+offer.id,'PATCH',{status});await refresh();setNotice(result.warning||(result.status==='pending'?'O anúncio foi enviado para análise antes de voltar à vitrine.':status==='removed'?'Anúncio removido.':'Anúncio atualizado.'))});
  const moderate=(offer:Offer,status:string)=>void execute(async()=>{await api('moderation/'+offer.id,'POST',{status});await refresh();setNotice('Decisão registrada.')});
  const reviewReport=(report:Report,decision:'dismissed'|'removed')=>{if(decision==='removed'&&!window.confirm('Retirar este anúncio do catálogo?'))return;void execute(async()=>{await api('admin/reports/'+report.id,'POST',{decision});await refresh();setNotice('Denúncia resolvida.')})};
- const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio});await refresh(true);setNotice('Perfil atualizado.')})};
+ const saveProfile=(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();void execute(async()=>{await api('profile','PATCH',{name:profileName,bio,slug:profileSlug,sellerType,businessName});await refresh(true);setNotice('Perfil atualizado.')})};
  const counts={published:offers.filter(item=>item.status==='published').length,paused:offers.filter(item=>item.status==='paused').length,sold:offers.filter(item=>item.status==='sold').length,pending:offers.filter(item=>item.status==='pending').length};
  const visibleOffers=offers.filter(item=>(offerFilter==='all'||item.status===offerFilter)&&item.title.toLocaleLowerCase('pt-BR').includes(offerQuery.trim().toLocaleLowerCase('pt-BR')));
  const filters=[{id:'all',label:'Todos'},{id:'published',label:'Publicados'},{id:'paused',label:'Pausados'},{id:'sold',label:'Vendidos'},{id:'pending',label:'Em análise'},{id:'rejected',label:'Não aprovados'}];
