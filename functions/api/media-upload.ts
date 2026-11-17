@@ -3,7 +3,9 @@ import {session,type Database} from '../_shared/account.ts';
 import {cleanPhoto} from '../_shared/image.ts';
 import {CloudinaryUploadError,cloudinaryKey,cloudinaryReady,deleteCloudinary,uploadCloudinary,type CloudinaryEnv} from '../_shared/cloudinary.ts';
 type Bucket={put:(key:string,body:Uint8Array,metadata:{httpMetadata:{contentType:string}})=>Promise<unknown>;delete:(key:string)=>Promise<unknown>};
-type Env=CloudinaryEnv&{MARKETPLACE_DB?:Database;LISTING_IMAGES?:Bucket};
+type Env=CloudinaryEnv&{MARKETPLACE_DB?:Database;LISTING_IMAGES?:Bucket;MEDIA_STORAGE_PROVIDER?:string};
+// Opt in to R2 without changing the current Cloudinary default.
+const useR2=(env:Env)=>env.MEDIA_STORAGE_PROVIDER==='r2'&&!!env.LISTING_IMAGES;
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 function ownedKey(value:unknown,origin:string){
  if(typeof value!=='string')return null;
@@ -11,7 +13,7 @@ function ownedKey(value:unknown,origin:string){
 }
 export async function onRequest({request,env}:{request:Request;env:Env}){
  if(request.method==='GET'){
-  const available=!!env.MARKETPLACE_DB&&(!!env.LISTING_IMAGES||cloudinaryReady(env));
+  const available=!!env.MARKETPLACE_DB&&(env.MEDIA_STORAGE_PROVIDER==='r2'?!!env.LISTING_IMAGES:(!!env.LISTING_IMAGES||cloudinaryReady(env)));
   if(new URL(request.url).searchParams.get('check')==='preview'){
    return json({available,checks:{
     database:!!env.MARKETPLACE_DB,
@@ -24,14 +26,14 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
  }
  if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'GET, POST'}});
  if(!env.MARKETPLACE_DB&&request.method==='POST')return json({error:'O banco de dados está indisponível.'},503);
- if(!env.MARKETPLACE_DB||(!env.LISTING_IMAGES&&!cloudinaryReady(env)))return json({error:'Não foi possível salvar fotos agora. Tente mais tarde.'},503);
+ if(!env.MARKETPLACE_DB||(!env.LISTING_IMAGES&&!cloudinaryReady(env))||(env.MEDIA_STORAGE_PROVIDER==='r2'&&!env.LISTING_IMAGES))return json({error:'Não foi possível salvar fotos agora. Tente mais tarde.'},503);
  const origin=new URL(request.url).origin;
  if(request.headers.get('Origin')!==origin||request.headers.get('Sec-Fetch-Site')==='cross-site')return json({error:'Abra o site novamente e tente enviar a foto.'},403);
  if(request.headers.get('Content-Type')!=='image/png')return json({error:'Escolha a foto novamente pelo formulário.'},415);
  if(Number(request.headers.get('Content-Length')||0)>3145728)return json({error:'Foto muito grande. Escolha uma imagem menor.'},413);
  const id=Number(new URL(request.url).searchParams.get('listingId'));
  if(!Number.isSafeInteger(id)||id<=0)return json({error:'Anúncio inválido.'},400);
- const db=env.MARKETPLACE_DB,bucket=env.LISTING_IMAGES,useCloudinary=cloudinaryReady(env);
+ const db=env.MARKETPLACE_DB,bucket=env.LISTING_IMAGES,useCloudinary=!useR2(env)&&cloudinaryReady(env);
  let phase='session';
  const requestId=crypto.randomUUID();
  const remove=async(key:string)=>{if(cloudinaryKey(key))await deleteCloudinary(env,key);else if(bucket)await bucket.delete(key);else throw new Error('Armazenamento anterior indisponível.')};

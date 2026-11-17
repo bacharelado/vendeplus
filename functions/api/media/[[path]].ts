@@ -2,7 +2,8 @@ import {cloudinaryKey,cloudinaryReady,readCloudinary,type CloudinaryEnv} from '.
 
 type Bucket={get:(key:string)=>Promise<{body:ReadableStream;httpMetadata?:{contentType?:string}}|null>};
 type DB={prepare:(query:string)=>{bind:(...args:unknown[])=>{first:()=>Promise<unknown>}}};
-type Env=CloudinaryEnv&{MARKETPLACE_DB?:DB;LISTING_IMAGES?:Bucket};
+type ImageBinding={input:(body:ReadableStream)=>{transform:(settings:{width:number})=>{output:(settings:{format:'image/webp',quality:number})=>{response:(options?:{headers?:Record<string,string>})=>Response}}}};
+type Env=CloudinaryEnv&{MARKETPLACE_DB?:DB;LISTING_IMAGES?:Bucket;IMAGES?:ImageBinding;MEDIA_IMAGE_OPTIMIZATION?:string};
 export async function onRequest({request,env}:{request:Request;env:Env}){
  if(!['GET','HEAD'].includes(request.method))return new Response(null,{status:405,headers:{Allow:'GET, HEAD'}});
  if(!env.MARKETPLACE_DB)return new Response(null,{status:503});
@@ -23,6 +24,16 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
   }
   const object=await env.LISTING_IMAGES!.get(key);
   if(!object)return new Response(null,{status:404});
+  // Optional Images binding: only transform published images after the DB authorization check.
+  // Disabled by default so there is no surprise consumption or behavior change.
+  if(request.method==='GET'&&env.MEDIA_IMAGE_OPTIMIZATION==='enabled'&&env.IMAGES){
+   try{
+    return env.IMAGES.input(object.body).transform({width:960}).output({format:'image/webp',quality:80}).response({headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
+   }catch(error){
+    console.error('VENDEPLUS_IMAGE_TRANSFORM_FAILURE',{kind:error instanceof Error?error.name:'Unknown'});
+    return new Response(null,{status:503});
+   }
+  }
   return new Response(request.method==='HEAD'?null:object.body,{headers});
  }catch{return new Response(null,{status:503})}
 }
