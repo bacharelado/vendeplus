@@ -31,8 +31,8 @@ export function readRoute(rawHash = '') {
   if (hash.startsWith('entrar?redefinir=')) return {name:'entrar',recover:true};
   const listing = /^anuncio-(\d+)$/.exec(hash);
   if (listing) return validId(listing[1])?{name:'anuncio',id:Number(listing[1])}:{name:'indisponivel'};
-  const seller = /^vendedor-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.exec(hash);
-  if (seller) return {name:'vendedor',sellerId:seller[1]};
+  const seller = /^vendedor-([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}|[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?)$/i.exec(hash);
+  if (seller) return {name:'vendedor',sellerId:seller[1].toLowerCase()};
   const draft = /^editar-([a-zA-Z0-9-]+)$/.exec(hash);
   if (draft) return {name:'publicar',draftId:draft[1]};
   const publish = /^publicar(?:\?(rascunho|anuncio)=([a-zA-Z0-9-]+))?$/.exec(hash);
