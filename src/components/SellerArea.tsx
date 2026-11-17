@@ -24,26 +24,50 @@ async function api(path:string,method='GET',data?:unknown){
  return value;
 }
 async function preparePhoto(file:File):Promise<Blob>{
- if(!file.type.startsWith('image/')||file.size>12000000)throw new Error('Selecione uma foto de até 12 MB.');
- const bitmap=await createImageBitmap(file);
- const ratio=Math.min(1,1280/Math.max(bitmap.width,bitmap.height));
- const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*ratio));canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
- const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Não foi possível processar a foto.');
- ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
- for(let attempt=0;attempt<4;attempt++){
-  const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Foto inválida.')),'image/png'));
-  if(blob.size<=3145728)return blob;
-  const smaller=document.createElement('canvas');smaller.width=Math.max(1,Math.floor(canvas.width*0.75));smaller.height=Math.max(1,Math.floor(canvas.height*0.75));
-  const context=smaller.getContext('2d');if(!context)break;context.drawImage(canvas,0,0,smaller.width,smaller.height);canvas.width=smaller.width;canvas.height=smaller.height;ctx.drawImage(smaller,0,0);
- }
- throw new Error('Foto muito grande. Escolha uma imagem menor.');
+ if(!['image/jpeg','image/png','image/webp'].includes(file.type)||!file.size||file.size>12000000)throw new Error('Selecione uma foto JPG, PNG ou WebP de até 12 MB.');
+ let bitmap:ImageBitmap;
+ try{bitmap=await createImageBitmap(file)}catch{throw new Error('Não foi possível abrir a foto. Escolha outra imagem.')}
+ try{
+  const ratio=Math.min(1,1280/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(bitmap.width*ratio));
+  canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
+  const ctx=canvas.getContext('2d');
+  if(!ctx)throw new Error('Seu navegador não conseguiu processar a foto.');
+  ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  for(let attempt=0;attempt<6;attempt++){
+   const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Não foi possível preparar a foto.')),'image/png'));
+   if(blob.size<=3145728)return blob;
+   const nextWidth=Math.max(1,Math.floor(canvas.width*0.75));
+   const nextHeight=Math.max(1,Math.floor(canvas.height*0.75));
+   if(nextWidth===canvas.width&&nextHeight===canvas.height)break;
+   // Downscale from the previous pixels without keeping an extra full-size canvas.
+   const smaller=document.createElement('canvas');
+   smaller.width=nextWidth;smaller.height=nextHeight;
+   const smallerCtx=smaller.getContext('2d');
+   if(!smallerCtx)break;
+   smallerCtx.drawImage(canvas,0,0,nextWidth,nextHeight);
+   canvas.width=nextWidth;canvas.height=nextHeight;
+   const resizedCtx=canvas.getContext('2d');
+   if(!resizedCtx)break;
+   resizedCtx.drawImage(smaller,0,0);
+  }
+  throw new Error('Foto muito grande para o envio gratuito. Escolha outra imagem.');
+ }finally{bitmap.close()}
 }
 async function uploadPhoto(id:number,file:File):Promise<string>{
  const image=await preparePhoto(file);
- const response=await fetch('/api/media-upload?listingId='+id,{method:'POST',headers:{'Content-Type':image.type},body:image,credentials:'same-origin',signal:AbortSignal.timeout(30000)});
- const value=await response.json();
- if(!response.ok)throw new Error(value.error||'Não foi possível enviar a foto.');
- return typeof value.warning==='string'?' '+value.warning:'';
+ let response:Response;
+ try{
+  response=await fetch('/api/media-upload?listingId='+id,{method:'POST',headers:{'Content-Type':'image/png'},body:image,credentials:'same-origin',signal:AbortSignal.timeout(30000)});
+ }catch(error){
+  if(error instanceof Error&&['TimeoutError','AbortError'].includes(error.name))throw new Error('O envio demorou demais. Confira a foto no anúncio antes de tentar novamente.');
+  throw new Error('Falha de conexão. Confira a foto no anúncio antes de tentar novamente.');
+ }
+ const value:unknown=await response.json().catch(()=>null);
+ const result=value&&typeof value==='object'?value as {ok?:boolean;error?:unknown;warning?:unknown}:null;
+ if(!response.ok||result?.ok!==true)throw new Error(typeof result?.error==='string'?result.error:'Não foi possível confirmar o envio da foto.');
+ return typeof result.warning==='string'?' '+result.warning:'';
 }
 export function SellerArea({draft:providedDraft,admin=false,initialPhoto=null,startNew=false,view='area',draftId,editId}:{draft?:Draft;admin?:boolean;initialPhoto?:File|null;startNew?:boolean;view?:'entrar'|'area'|'publicar';draftId?:string;editId?:number}){
  const [draft]=useState<Draft|undefined>(()=>{if(providedDraft)return providedDraft;try{return readDrafts(localStorage).find(item=>item.id===draftId)}catch{return undefined}});

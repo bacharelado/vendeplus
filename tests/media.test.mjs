@@ -55,3 +55,29 @@ test('disponibilidade de fotos informa ausência de armazenamento sem expor conf
  const missing=await onRequest({request,env:{}});assert.deepEqual(await missing.json(),{available:false});
  const ready=await onRequest({request,env:{MARKETPLACE_DB:{},LISTING_IMAGES:{}}});assert.deepEqual(await ready.json(),{available:true});
 });
+
+test('falha na limpeza após alteração concorrente mantém resposta 409',async()=>{
+ const h=await setup();
+ h.bucket.put=async(key,bytes)=>{
+  h.objects.set(key,bytes);
+  h.sqlite.exec("UPDATE marketplace_listings SET status='removed' WHERE id=1");
+ };
+ h.bucket.delete=async()=>{throw new Error('R2 indisponível')};
+ const response=await h.upload();
+ assert.equal(response.status,409);
+ assert.equal((await response.json()).code,'LISTING_CHANGED');
+});
+
+test('falha na confirmação do banco não mascara a resposta se a limpeza falhar',async()=>{
+ const h=await setup();
+ const originalPut=h.bucket.put;
+ h.bucket.put=async(key,bytes)=>{
+  await originalPut(key,bytes);
+  // Simulate DB update failure after the provider successfully stores the PNG.
+  h.sqlite.exec('DROP TABLE marketplace_listings');
+ };
+ h.bucket.delete=async()=>{throw new Error('Falha ao remover órfão')};
+ const response=await h.upload();
+ assert.equal(response.status,503);
+ assert.match((await response.json()).error,/confirmar a foto/);
+});

@@ -71,11 +71,22 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
    const result=await db.prepare("UPDATE marketplace_listings SET image_url=? WHERE id=? AND seller_id=? AND image_url IS ? AND status NOT IN ('removed','rejected')").bind(image,id,user.id,listing.image??null).run();
    changed=!!result.meta.changes;
   }catch{
-   const referenced=await db.prepare('SELECT id FROM marketplace_listings WHERE image_url=?').bind(image).first();
-   if(!referenced)await remove(key);
-   return json({error:'Não foi possível confirmar a foto. Atualize seus anúncios antes de tentar novamente.'},503);
+   // Best-effort cleanup must never turn a failed DB confirmation into an
+   // unhandled exception or imply the image was attached to the listing.
+   try{
+    const referenced=await db.prepare('SELECT id FROM marketplace_listings WHERE image_url=?').bind(image).first();
+    if(!referenced)await remove(key);
+   }catch(cleanupError){
+    console.error('VENDEPLUS_PHOTO_ORPHAN_CLEANUP_FAILED',{requestId,phase:'database_update',kind:cleanupError instanceof Error?cleanupError.name:'Unknown'});
+   }
+   return json({error:'Não foi possível confirmar a foto. Confira seu anúncio antes de tentar novamente.'},503);
   }
-  if(!changed){await remove(key);return json({error:'O anúncio mudou. Atualize a página e tente novamente.'},409)}
+  if(!changed){
+   try{await remove(key)}catch(cleanupError){
+    console.error('VENDEPLUS_PHOTO_ORPHAN_CLEANUP_FAILED',{requestId,phase:'concurrent_update',kind:cleanupError instanceof Error?cleanupError.name:'Unknown'});
+   }
+   return json({error:'O anúncio mudou. Atualize a página e tente novamente.',code:'LISTING_CHANGED'},409);
+  }
   phase='prior_image_cleanup';
   const previous=ownedKey(listing.image,origin);
   if(previous){
