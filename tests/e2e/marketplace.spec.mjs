@@ -400,7 +400,7 @@ test('perfil aguarda carregamento, permite salvar e persiste após recarregar',a
  await expect(page.getByRole('textbox',{name:'Nome público',exact:true})).toHaveValue('Nome carregado');
  await page.getByRole('textbox',{name:'Nome público',exact:true}).fill('Nome atualizado no teste');
  await page.getByRole('button',{name:'Salvar perfil',exact:true}).click();
- await expect(page.getByRole('status').filter({hasText:'Perfil atualizado.'})).toBeVisible();
+ await expect(page.getByRole('status').filter({hasText:'Perfil atualizado com sucesso.'})).toBeVisible();
  expect(profile.name).toBe('Nome atualizado no teste');
  await page.reload();await page.locator('.profile-settings summary').click();
  await expect(page.getByRole('textbox',{name:'Nome público',exact:true})).toHaveValue('Nome atualizado no teste');
