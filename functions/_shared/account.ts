@@ -10,6 +10,7 @@ type Statement={bind:(...values:unknown[])=>Statement;first:()=>Promise<Row|null
 export type Database={prepare:(query:string)=>Statement;batch:(statements:Statement[])=>Promise<unknown[]>};
 type Context={request:Request;env:PhotoEnv&{MARKETPLACE_DB?:Database};waitUntil?:(task:Promise<unknown>)=>void};
 const neighborhoods=['Poranga I','Poranga II','Jacarezinho'];
+const reservedSlugs=new Set(['admin','api','area','catalogo','entrar','inicio','publicar','suporte','vendeplus','vendedor']);
 const categories=['Alimentação','Moda','Eletrônicos','Casa','Beleza','Serviços'];
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 const derive=(password:string,salt:string)=>new Promise<Buffer>((resolve,reject)=>scrypt(password,salt,32,{N:16384,r:8,p:5,maxmem:32*1024*1024},(error,key)=>error?reject(error):resolve(key)));
@@ -85,13 +86,18 @@ export async function handleAccount(context:Context){
    return reply({id,status},201);
   }
   if(path==='/profile'&&request.method==='GET'){
-   const profile=await db.prepare("SELECT s.display_name AS name,s.whatsapp,a.neighborhood,COALESCE(p.bio,'') AS bio FROM marketplace_sellers s JOIN marketplace_accounts a ON a.id=s.id LEFT JOIN marketplace_seller_profiles p ON p.seller_id=s.id WHERE s.id=?").bind(account.id).first();
+   const profile=await db.prepare("SELECT s.display_name AS name,s.whatsapp,a.neighborhood,COALESCE(p.bio,'') AS bio,p.slug,COALESCE(p.seller_type,'person') AS sellerType,COALESCE(p.business_name,'') AS businessName,p.avatar_url AS avatarUrl,p.cover_url AS coverUrl FROM marketplace_sellers s JOIN marketplace_accounts a ON a.id=s.id LEFT JOIN marketplace_seller_profiles p ON p.seller_id=s.id WHERE s.id=?").bind(account.id).first();
    return reply({profile});
   }
   if(path==='/profile'&&request.method==='PATCH'){
-   const name=text(data.name,2,80),bio=typeof data.bio==='string'?data.bio.trim():'';
-   if(bio.length>600)throw new Failure('Descrição muito longa.');
-   await db.batch([db.prepare('UPDATE marketplace_sellers SET display_name=? WHERE id=?').bind(name,account.id),db.prepare('INSERT INTO marketplace_seller_profiles(seller_id,bio) VALUES (?,?) ON CONFLICT(seller_id) DO UPDATE SET bio=excluded.bio').bind(account.id,bio)]);
+   const name=text(data.name,2,80),bio=typeof data.bio==='string'?data.bio.trim():'',sellerType=data.sellerType==='business'?'business':'person';
+   const businessName=typeof data.businessName==='string'?data.businessName.trim():'';
+   const slug=typeof data.slug==='string'?data.slug.trim().toLowerCase():'';
+   if(bio.length>600||businessName.length>80)throw new Failure('Perfil muito longo.');
+   if(slug&&(!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/.test(slug)||reservedSlugs.has(slug)))throw new Failure('Escolha um @nome com 3 a 40 caracteres, letras, números ou hífen.');
+   if(sellerType==='business'&&!businessName)throw new Failure('Informe o nome da loja ou negócio.');
+   if(slug){const owner=await db.prepare('SELECT seller_id FROM marketplace_seller_profiles WHERE lower(slug)=? AND seller_id!=?').bind(slug,account.id).first();if(owner)throw new Failure('Este @nome já está em uso.',409)}
+   await db.batch([db.prepare('UPDATE marketplace_sellers SET display_name=? WHERE id=?').bind(name,account.id),db.prepare(`INSERT INTO marketplace_seller_profiles(seller_id,bio,slug,seller_type,business_name) VALUES (?,?,?,?,?) ON CONFLICT(seller_id) DO UPDATE SET bio=excluded.bio,slug=excluded.slug,seller_type=excluded.seller_type,business_name=excluded.business_name`).bind(account.id,bio,slug||null,sellerType,businessName)]);
    return reply({ok:true});
   }
   const own=/^\/listings\/(\d+)$/.exec(path);
