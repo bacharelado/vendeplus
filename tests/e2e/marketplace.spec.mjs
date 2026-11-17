@@ -395,15 +395,15 @@ test('perfil aguarda carregamento, permite salvar e persiste após recarregar',a
   return route.fulfill({contentType:'application/json',body:JSON.stringify({profile})});
  });
  await page.goto('/#area');await expect(page.getByText('Carregando sua conta…',{exact:true})).toBeVisible();
- await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveCount(0);release();
+ await expect(page.getByRole('textbox',{name:'Nome público',exact:true})).toHaveCount(0);release();
  await page.locator('.profile-settings summary').click();
- await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome carregado');
- await page.getByRole('textbox',{name:'Nome comercial',exact:true}).fill('Nome atualizado no teste');
+ await expect(page.getByRole('textbox',{name:'Nome público',exact:true})).toHaveValue('Nome carregado');
+ await page.getByRole('textbox',{name:'Nome público',exact:true}).fill('Nome atualizado no teste');
  await page.getByRole('button',{name:'Salvar perfil',exact:true}).click();
  await expect(page.getByRole('status').filter({hasText:'Perfil atualizado.'})).toBeVisible();
  expect(profile.name).toBe('Nome atualizado no teste');
  await page.reload();await page.locator('.profile-settings summary').click();
- await expect(page.getByRole('textbox',{name:'Nome comercial',exact:true})).toHaveValue('Nome atualizado no teste');
+ await expect(page.getByRole('textbox',{name:'Nome público',exact:true})).toHaveValue('Nome atualizado no teste');
 });
 
 test('caminho Anunciar abre diretamente a jornada do vendedor',async({page},info)=>{
