@@ -1,3 +1,4 @@
+import {onRequest as readMedia} from '../functions/api/media/[[path]].ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PNG} from 'pngjs';
@@ -15,7 +16,7 @@ async function setup(){
  const objects=new Map();const deleted=[];
  const bucket={async put(key,bytes){objects.set(key,bytes)},async delete(key){objects.delete(key);deleted.push(key)}};
  const upload=(bytes=valid(),extra={})=>onRequest({request:new Request(origin+'/api/media-upload?listingId=1',{method:'POST',headers:{Origin:origin,'Content-Type':'image/png',Cookie:cookie,...extra},body:bytes}),env:{MARKETPLACE_DB:h.db,LISTING_IMAGES:bucket}});
- return {...h,objects,deleted,bucket,upload};
+ return {...h,objects,deleted,bucket,upload,cookie};
 }
 test('servidor rejeita assinatura PNG sem imagem, CRC inválido e dimensões excessivas',()=>{
  assert.throws(()=>cleanPhoto(new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0,0,0,0,0])));
@@ -80,4 +81,34 @@ test('falha na confirmação do banco não mascara a resposta se a limpeza falha
  const response=await h.upload();
  assert.equal(response.status,503);
  assert.match((await response.json()).error,/confirmar a foto/);
+});
+
+test('resposta de upload perdida pode ser consultada e repetida sem novo objeto ou gasto de cota',async t=>{
+ const h=await setup();t.after(()=>h.sqlite.close());
+ const op=crypto.randomUUID(),headers={'X-Photo-Request':op,'X-Previous-Photo':'original'};
+ const accepted=await h.upload(valid(),headers);assert.equal(accepted.status,200);
+ const {image}=await accepted.json();
+ const request=path=>handleAccount({env:{MARKETPLACE_DB:h.db},request:new Request(origin+'/api/account/'+path,{headers:{Cookie:h.cookie}})});
+ assert.equal((await (await request('listings/1/photo')).json()).photoVersion,op);
+ assert.equal((await (await h.upload(valid(),headers)).json()).image,image);
+ assert.equal(h.objects.size,1);assert.equal(h.deleted.length,0);
+ const next=crypto.randomUUID();
+ assert.equal((await h.upload(valid(),{'X-Photo-Request':next,'X-Previous-Photo':op})).status,200);
+ assert.equal((await h.upload(valid(),headers)).status,409);
+ assert.equal(h.sqlite.prepare('SELECT photo_request_id FROM marketplace_listings').get().photo_request_id,next);
+ assert.equal(h.deleted.length,1);
+});
+test('foto de anúncio pausado aparece na área do dono, inclusive na edição, e fica privada para visitantes',async t=>{
+ const h=await setup();t.after(()=>h.sqlite.close());const {image}=await (await h.upload()).json();
+ h.sqlite.exec("UPDATE marketplace_listings SET status='paused'");
+ const list=await handleAccount({env:{MARKETPLACE_DB:h.db},request:new Request(origin+'/api/account/listings',{headers:{Cookie:h.cookie}})});
+ const saved=(await list.json()).listings[0];
+ assert.match(saved.image,/^\/api\/media\/owner-1/);
+ const env={MARKETPLACE_DB:h.db,LISTING_IMAGES:{async get(key){return h.objects.has(key)?{body:h.objects.get(key)}:null}}};
+ const get=(url,cookie='')=>readMedia({env,request:new Request(new URL(url,origin),{headers:{Cookie:cookie}})});
+ assert.equal((await get(image)).status,404);
+ assert.equal((await get(saved.image)).status,401);
+ const own=await get(saved.image,h.cookie);assert.equal(own.status,200);assert.match(own.headers.get('cache-control'),/no-store/);
+ h.sqlite.exec("INSERT INTO marketplace_sellers(id,display_name) VALUES ('outro','Outro vendedor'); UPDATE marketplace_listings SET seller_id='outro' WHERE id=1");
+ assert.equal((await get(saved.image,h.cookie)).status,404);
 });

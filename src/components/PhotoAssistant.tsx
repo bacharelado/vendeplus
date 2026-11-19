@@ -1,7 +1,7 @@
 import {useEffect,useState,type ChangeEvent} from 'react';
 
-type Props={onFile:(file:File|null)=>void;initialPhoto?:File|null;draftMode?:boolean;storageAvailable?:boolean};
-export function PhotoPicker({onFile,initialPhoto=null,draftMode=false,storageAvailable}:Props){
+type Props={currentImage?:string;onFile:(file:File|null)=>void;initialPhoto?:File|null;draftMode?:boolean;storageAvailable?:boolean};
+export function PhotoPicker({currentImage,onFile,initialPhoto=null,draftMode=false,storageAvailable}:Props){
  const [photo,setPhoto]=useState<File|null>(initialPhoto),[preview,setPreview]=useState(''),[error,setError]=useState('');
  useEffect(()=>{if(!photo){setPreview('');return}const url=URL.createObjectURL(photo);setPreview(url);return ()=>URL.revokeObjectURL(url)},[photo]);
  const changed=(event:ChangeEvent<HTMLInputElement>)=>{
@@ -12,7 +12,8 @@ export function PhotoPicker({onFile,initialPhoto=null,draftMode=false,storageAva
  return <section className="ai-photo-box" aria-label="Foto do anúncio">
   <div className="photo-heading"><strong>Foto do produto</strong><span className="field-help">Opcional · JPG, PNG ou WebP, até 12 MB</span></div>
   {storageAvailable===false&&<p role="status" className="field-help">O envio de fotos está indisponível por enquanto. Você pode publicar seu anúncio sem foto.</p>}
-  <label className="ai-photo-picker"><span>Foto do produto (opcional)</span><span className="photo-picker-action">{photo?'Trocar foto':'Escolher foto'}</span><input className="photo-file-input" aria-label="Foto do produto (opcional)" disabled={storageAvailable===false} type="file" accept="image/jpeg,image/png,image/webp" onChange={changed}/></label>
+  <label className="ai-photo-picker"><span>Foto do produto (opcional)</span><span className="photo-picker-action">{photo||currentImage?'Trocar foto':'Escolher foto'}</span><input className="photo-file-input" aria-label="Foto do produto (opcional)" disabled={storageAvailable===false} type="file" accept="image/jpeg,image/png,image/webp" onChange={changed}/></label>
+  {currentImage&&!preview&&<img className="ai-photo-preview" src={currentImage} alt="Foto atual do anúncio"/>}
   {preview&&<img className="ai-photo-preview" src={preview} alt="Foto escolhida para o anúncio"/>}
   {error&&<p role="alert" className="form-error">{error}</p>}
 

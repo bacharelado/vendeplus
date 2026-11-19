@@ -8,8 +8,7 @@ export function decodeListings(payload:unknown):Listing[]{
     if(!Number.isSafeInteger(item.id)||Number(item.id)<=0||typeof item.title!=='string'||typeof item.description!=='string'||typeof item.seller!=='string'||typeof item.fulfillment!=='string'||!categories.some(c=>c.name===item.category)||!['Novo','Usado','Não aplicável'].includes(String(item.condition))||item.status!=='PUBLICADO'||!Number.isSafeInteger(item.createdAt))throw new Error('Anúncio inválido');
     if(item.priceCents!==null&&(!Number.isSafeInteger(item.priceCents)||Number(item.priceCents)<=0))throw new Error('Preço inválido');
     const image=typeof item.image==='string'&&/^https:\/\//i.test(item.image)?item.image:undefined;
-    const contactWhatsapp=typeof item.contactWhatsapp==='string'&&/^55\d{10,11}$/.test(item.contactWhatsapp)?item.contactWhatsapp:undefined;
-    return {...item,image,contactWhatsapp} as Listing;
+    return {...item,image,canContact:item.canContact===true} as Listing;
   });
 }
 export async function fetchCatalog(signal:AbortSignal):Promise<Listing[]>{

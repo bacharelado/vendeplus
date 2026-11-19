@@ -1,8 +1,10 @@
+import {changeContact,confirmContact} from './seller-contact.ts';
+import {reportQueue,decideReport} from './report-review.ts';
 import {normalizeWhatsapp} from '../../src/lib/phone.mjs';
 import {randomBytes,scrypt,timingSafeEqual,createHash} from 'node:crypto';
 import {handlePasswordReset} from './password-reset.ts';
 import {moderateOffer} from './moderation.ts';
-import {removeListingPhoto,type PhotoEnv} from './photo-cleanup.ts';
+import {managedPhotoKey,removeListingPhoto,type PhotoEnv} from './photo-cleanup.ts';
 import {readJson,RequestFailure as Failure} from './http.ts';
 
 type Row=Record<string,unknown>;
@@ -26,7 +28,7 @@ async function rate(db:Database,key:string,limit:number){
  if(Number(result?.attempts)>limit)throw new Failure('Muitas tentativas. Aguarde 15 minutos e tente novamente.',429);
  await db.prepare('DELETE FROM marketplace_rate_limits WHERE expires_at < ?').bind(now).run();
 }
-const accountFields='a.id,a.email,a.neighborhood,a.role,s.display_name AS name,s.status,s.whatsapp';
+const accountFields='a.id,a.email,a.neighborhood,a.role,s.display_name AS name,s.status,s.whatsapp,COALESCE(s.verified_whatsapp=s.whatsapp,0) AS contactVerified';
 export async function session(db:Database,request:Request){
  const token=tokenFrom(request);if(!token)return null;
  return db.prepare(`SELECT ${accountFields} FROM marketplace_sessions t JOIN marketplace_accounts a ON a.id=t.account_id JOIN marketplace_sellers s ON s.id=a.id WHERE t.token_hash=? AND t.expires_at>unixepoch() AND s.status!='suspended'`).bind(hash(token)).first();
@@ -44,6 +46,13 @@ export async function handleAccount(context:Context){
  if(path==='/password-reset'||path.startsWith('/password-reset/'))return handlePasswordReset({request,path});
  if(!env.MARKETPLACE_DB)return reply({error:'Serviço temporariamente indisponível.'},503);
  const db=env.MARKETPLACE_DB;
+ async function cleanupRemovedPhoto(id:number){
+  try{
+   const row=await db!.prepare("SELECT image_url AS image FROM marketplace_listings WHERE id=? AND status='removed'").bind(id).first();
+   await removeListingPhoto(db!,env,row?.image,new URL(request.url).origin,id);
+   return {};
+  }catch{console.error('VENDEPLUS_PHOTO_CLEANUP_PENDING',{listingId:id});return {warning:'Anúncio removido. A limpeza da foto está pendente.'}}
+ }
  try{
   if(!['GET','POST','PATCH'].includes(request.method))return reply({error:'Método não permitido.'},405,{Allow:'GET, POST, PATCH'});
   const data=request.method==='GET'?{}:await readJson(request);
@@ -58,7 +67,7 @@ export async function handleAccount(context:Context){
     const name=text(data.name,2,80),whatsapp=normalizeWhatsapp(data.whatsapp);
     if(!whatsapp||typeof data.neighborhood!=='string'||!neighborhoods.includes(data.neighborhood)||data.acceptContact!==true)throw new Failure('Informe o bairro, um WhatsApp brasileiro com DDD e autorize sua divulgação nos anúncios aprovados.');
     const encoded=await passwordHash(password),id=crypto.randomUUID();
-    try{await db.batch([db.prepare('INSERT INTO marketplace_sellers(id,display_name,whatsapp) VALUES (?,?,?)').bind(id,name,whatsapp),db.prepare('INSERT INTO marketplace_accounts(id,email,password_hash,neighborhood) VALUES (?,?,?,?)').bind(id,email,encoded,data.neighborhood),sessionStatement(db,id,token)])}
+    try{await db.batch([db.prepare('INSERT INTO marketplace_sellers(id,display_name,whatsapp,contact_code) VALUES (?,?,?,lower(hex(randomblob(4))))').bind(id,name,whatsapp),db.prepare('INSERT INTO marketplace_accounts(id,email,password_hash,neighborhood) VALUES (?,?,?,?)').bind(id,email,encoded,data.neighborhood),sessionStatement(db,id,token)])}
     catch(error){if(await db.prepare('SELECT id FROM marketplace_accounts WHERE email=?').bind(email).first())throw new Failure('Não foi possível cadastrar com esse e-mail. Tente entrar na sua conta.',409);throw error}
     return reply({account:await db.prepare(`SELECT ${accountFields} FROM marketplace_accounts a JOIN marketplace_sellers s ON s.id=a.id WHERE a.id=?`).bind(id).first()},201,{'Set-Cookie':cookie(token)});
    }
@@ -72,8 +81,14 @@ export async function handleAccount(context:Context){
   if(path==='/logout'&&request.method==='POST'){await db.prepare('DELETE FROM marketplace_sessions WHERE token_hash=?').bind(hash(tokenFrom(request))).run();return reply({ok:true},200,{'Set-Cookie':cookie('',0)})}
   const account=await session(db,request);if(!account)throw new Failure('Entre na sua conta para continuar.',401);
   if(path==='/listings'&&request.method==='GET'){
-   const result=await db.prepare('SELECT l.id,l.title,l.description,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,l.status,d.neighborhood FROM marketplace_listings l LEFT JOIN marketplace_listing_details d ON d.listing_id=l.id WHERE l.seller_id=? AND l.status!=\'removed\' ORDER BY l.created_at DESC,l.id DESC LIMIT 200').bind(account.id).all();
-   return reply({listings:result.results});
+   const result=await db.prepare('SELECT l.id,l.title,l.description,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,l.status,l.image_url AS storedImage,l.photo_request_id AS photoVersion,d.neighborhood FROM marketplace_listings l LEFT JOIN marketplace_listing_details d ON d.listing_id=l.id WHERE l.seller_id=? AND l.status!=\'removed\' ORDER BY l.created_at DESC,l.id DESC LIMIT 200').bind(account.id).all();
+   return reply({listings:result.results.map(({storedImage,...offer})=>({...offer,image:managedPhotoKey(storedImage,new URL(request.url).origin)?'/api/media/owner-'+offer.id+'?v='+(offer.photoVersion||'original'):storedImage||null}))});
+  }
+  const ownPhoto=/^\/listings\/([1-9]\d*)\/photo$/.exec(path);
+  if(ownPhoto&&request.method==='GET'){
+   const photo=await db.prepare("SELECT photo_request_id AS photoVersion FROM marketplace_listings WHERE id=? AND seller_id=? AND status!='removed'").bind(Number(ownPhoto[1]),account.id).first();
+   if(!photo)throw new Failure('Anúncio não encontrado.',404);
+   return reply(photo);
   }
   if(path==='/listings'&&request.method==='POST'){
    const values=listingData(data),requestId=text(data.requestId,32,36);if(!/^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(requestId))throw new Failure('Identificador da solicitação inválido.');
@@ -86,8 +101,13 @@ export async function handleAccount(context:Context){
    return reply({id,status},201);
   }
   if(path==='/profile'&&request.method==='GET'){
-   const profile=await db.prepare("SELECT s.display_name AS name,s.whatsapp,a.neighborhood,COALESCE(p.bio,'') AS bio,p.slug,COALESCE(p.seller_type,'person') AS sellerType,COALESCE(p.business_name,'') AS businessName,p.avatar_url AS avatarUrl,p.cover_url AS coverUrl FROM marketplace_sellers s JOIN marketplace_accounts a ON a.id=s.id LEFT JOIN marketplace_seller_profiles p ON p.seller_id=s.id WHERE s.id=?").bind(account.id).first();
+   await db.prepare("UPDATE marketplace_sellers SET contact_code=lower(hex(randomblob(4))) WHERE id=? AND contact_code IS NULL AND verified_whatsapp IS NOT whatsapp").bind(account.id).run();
+   const profile=await db.prepare("SELECT s.display_name AS name,s.whatsapp,s.contact_code AS contactCode,s.profile_contact AS profileContact,COALESCE(s.verified_whatsapp=s.whatsapp,0) AS contactVerified,a.neighborhood,COALESCE(p.bio,'') AS bio,p.slug,COALESCE(p.seller_type,'person') AS sellerType,COALESCE(p.business_name,'') AS businessName,p.avatar_url AS avatarUrl,p.cover_url AS coverUrl FROM marketplace_sellers s JOIN marketplace_accounts a ON a.id=s.id LEFT JOIN marketplace_seller_profiles p ON p.seller_id=s.id WHERE s.id=?").bind(account.id).first();
    return reply({profile});
+  }
+  if(path==='/contact'&&request.method==='PATCH'){
+   await changeContact(db,account.id,data);
+   return reply({ok:true});
   }
   if(path==='/profile'&&request.method==='PATCH'){
    const name=text(data.name,2,80),bio=typeof data.bio==='string'?data.bio.trim():'',sellerType=data.sellerType==='business'?'business':'person';
@@ -126,10 +146,7 @@ export async function handleAccount(context:Context){
    const status=data.status==='published'&&moderateOffer(String(current.title),String(current.description))==='review'?'pending':String(data.status);
    const result=await db.prepare('UPDATE marketplace_listings SET status=? WHERE id=? AND seller_id=? AND status=? AND title=? AND description=?').bind(status,id,account.id,current.status,current.title,current.description).run();if(!result.meta.changes)throw new Failure('O anúncio mudou. Atualize.',409);
    await db.prepare('INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)').bind(id,account.id,status).run();
-   if(status==='removed'){
-    try{await removeListingPhoto(db,env,current.image,new URL(request.url).origin,id)}
-    catch{console.error('VENDEPLUS_PHOTO_CLEANUP_PENDING',{listingId:id});return reply({ok:true,status,warning:'Anúncio removido. A limpeza da foto está pendente.'})}
-   }
+   if(status==='removed')return reply({ok:true,status,...await cleanupRemovedPhoto(id)});
    return reply({ok:true,status});
   }
   if(path==='/password'&&request.method==='POST'){
@@ -150,7 +167,7 @@ export async function handleAccount(context:Context){
   }
   if(path==='/admin/sellers'&&request.method==='GET'){
     if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
-    const items=await db.prepare("SELECT a.id,a.email,a.neighborhood,a.role,a.created_at AS createdAt,s.display_name AS name,s.status FROM marketplace_accounts a JOIN marketplace_sellers s ON s.id=a.id ORDER BY a.created_at DESC LIMIT 200").all();
+    const items=await db.prepare("SELECT a.id,a.email,a.neighborhood,a.role,a.created_at AS createdAt,s.display_name AS name,s.status,s.whatsapp,COALESCE(s.verified_whatsapp=s.whatsapp,0) AS contactVerified FROM marketplace_accounts a JOIN marketplace_sellers s ON s.id=a.id ORDER BY a.created_at DESC LIMIT 200").all();
     return reply({sellers:items.results});
   }
   if(path==='/admin/listings'&&request.method==='GET'){
@@ -167,33 +184,35 @@ export async function handleAccount(context:Context){
     if(!listing)throw new Failure('Anúncio não encontrado.',404);
     await db.batch([
       db.prepare("UPDATE marketplace_listings SET status='removed' WHERE id=? AND status!='removed'").bind(id),
-      db.prepare("INSERT INTO marketplace_listing_events(listing_id,seller_id,event) VALUES (?,?,?)").bind(id,listing.seller_id,'admin_removed')
+      db.prepare("INSERT INTO marketplace_listing_events(listing_id,seller_id,event) SELECT ?,?,? WHERE changes()=1").bind(id,listing.seller_id,'admin_removed')
     ]);
-    return reply({ok:true});
+    return reply({ok:true,...await cleanupRemovedPhoto(id)});
   }
   if(path==='/admin/stats'&&request.method==='GET'){
     if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
     const sellers=await db.prepare('SELECT COUNT(*) AS total FROM marketplace_accounts').first();
     const published=await db.prepare("SELECT COUNT(*) AS total FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status='published' AND s.status!='suspended'").first();
-    const reports=await db.prepare("SELECT COUNT(*) AS total FROM marketplace_reports WHERE status='open'").first();
+    const reports=await db.prepare("SELECT (SELECT COUNT(*) FROM marketplace_reports WHERE status='open')+(SELECT COUNT(*) FROM marketplace_seller_reports WHERE status='open') AS total").first();
     const listings=await db.prepare("SELECT COUNT(*) AS total FROM marketplace_listings WHERE status!='removed'").first();
     return reply({sellers:Number(sellers?.total||0),published:Number(published?.total||0),reports:Number(reports?.total||0),listings:Number(listings?.total||0)});
   }
   if(path==='/admin/reports'&&request.method==='GET'){
     if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
-    const queue=await db.prepare("SELECT r.id,r.listing_id AS listingId,r.reason,r.details,r.created_at AS createdAt,l.title,l.seller_id AS sellerId,l.status AS listingStatus FROM marketplace_reports r JOIN marketplace_listings l ON l.id=r.listing_id WHERE r.status='open' ORDER BY r.created_at DESC LIMIT 100").all();
-    return reply({reports:queue.results});
+    const status=new URL(request.url).searchParams.get('status')||'open';
+    if(status!=='open'&&status!=='closed')throw new Failure('Fila inválida.');
+    return reply({reports:await reportQueue(db,status)});
   }
-  const reportReview=/^\/admin\/reports\/(\d+)$/.exec(path);
+  const reportReview=/^\/admin\/reports\/(?:(seller|listing)\/)?(\d+)$/.exec(path);
   if(reportReview&&request.method==='POST'){
     if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
-    if(!['dismissed','removed'].includes(String(data.decision)))throw new Failure('Decisão inválida.');
-    const id=Number(reportReview[1]);
-    const report=await db.prepare("SELECT listing_id FROM marketplace_reports WHERE id=? AND status='open'").bind(id).first();
-    if(!report)throw new Failure('Denúncia não encontrada.',404);
-    const statements=[db.prepare("UPDATE marketplace_reports SET status='closed',decision=?,resolved_by=?,resolved_at=unixepoch() WHERE id=? AND status='open'").bind(data.decision,account.id,id)];
-    if(data.decision==='removed')statements.push(db.prepare("UPDATE marketplace_listings SET status='removed' WHERE id=? AND status!='removed'").bind(report.listing_id));
-    await db.batch(statements);
+    const removed=await decideReport(db,account.id,Number(reportReview[2]),reportReview[1]==='seller'?'seller':'listing',data.decision);
+    return reply({ok:true,...(removed?await cleanupRemovedPhoto(removed):{})});
+  }
+  const verifySeller=/^\/admin\/sellers\/([a-f0-9-]{36})\/contact$/.exec(path);
+  if(verifySeller&&request.method==='POST'){
+    if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
+    await rate(db,'confirm:'+account.id,20);
+    await confirmContact(db,account.id,verifySeller[1],data);
     return reply({ok:true});
   }
   const adminSeller=/^\/admin\/sellers\/([a-f0-9-]{36})$/.exec(path);
@@ -201,19 +220,22 @@ export async function handleAccount(context:Context){
     if(account.role!=='admin')throw new Failure('Acesso restrito.',403);
     if(adminSeller[1]===account.id)throw new Failure('Não é permitido bloquear a própria conta.',409);
     if(!['suspended','approved'].includes(String(data.status)))throw new Failure('Status inválido.');
-    const update=await db.prepare('UPDATE marketplace_sellers SET status=? WHERE id=?').bind(data.status,adminSeller[1]).run();
-    if(!update.meta.changes)throw new Failure('Vendedor não encontrado.',404);
-    if(data.status==='suspended')await db.prepare('DELETE FROM marketplace_sessions WHERE account_id=?').bind(adminSeller[1]).run();
+    const [update]=await db.batch([
+      db.prepare("UPDATE marketplace_sellers SET status=CASE WHEN ?='approved' AND verified_whatsapp IS NOT whatsapp THEN 'pending' ELSE ? END WHERE id=?").bind(data.status,data.status,adminSeller[1]),
+      ...(data.status==='suspended'?[db.prepare('DELETE FROM marketplace_sessions WHERE account_id=?').bind(adminSeller[1])]:[])
+    ]);
+    if(!(update as {meta:{changes:number}}).meta.changes)throw new Failure('Vendedor não encontrado.',404);
     return reply({ok:true});
   }
   if(path.startsWith('/moderation')){
    if(account.role!=='admin')throw new Failure('Acesso restrito à administração.',403);
-   if(path==='/moderation'&&request.method==='GET')return reply({listings:(await db.prepare("SELECT l.id,l.title,l.description,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,s.display_name AS seller,s.whatsapp,s.status AS sellerStatus FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status='pending' ORDER BY l.created_at LIMIT 100").all()).results});
+   if(path==='/moderation'&&request.method==='GET')return reply({listings:(await db.prepare("SELECT l.id,l.title,l.description,l.price_cents AS priceCents,l.category,l.condition,l.fulfillment,s.display_name AS seller,s.whatsapp,s.status AS sellerStatus,COALESCE(s.verified_whatsapp=s.whatsapp,0) AS contactVerified FROM marketplace_listings l JOIN marketplace_sellers s ON s.id=l.seller_id WHERE l.status='pending' ORDER BY l.created_at LIMIT 100").all()).results});
    const sellerReview=/^\/moderation\/(\d+)\/seller$/.exec(path);
    if(sellerReview&&request.method==='POST'){
     if(data.confirmContact!==true)throw new Failure('Confirme a revisão do cadastro e a propriedade do WhatsApp.');
     const listing=await db.prepare("SELECT seller_id FROM marketplace_listings WHERE id=? AND status='pending'").bind(Number(sellerReview[1])).first();if(!listing)throw new Failure('Anúncio não encontrado.',404);
-    await db.batch([db.prepare("INSERT INTO marketplace_seller_reviews(admin_id,seller_id) SELECT ?,id FROM marketplace_sellers WHERE id=? AND status='pending'").bind(account.id,listing.seller_id),db.prepare("UPDATE marketplace_sellers SET status='approved' WHERE id=? AND status='pending'").bind(listing.seller_id)]);
+    await rate(db,'confirm:'+account.id,20);
+    await confirmContact(db,account.id,listing.seller_id,data);
     return reply({ok:true});
    }
    const target=/^\/moderation\/(\d+)$/.exec(path);
@@ -221,11 +243,11 @@ export async function handleAccount(context:Context){
     if(!['published','rejected'].includes(String(data.status)))throw new Failure('Decisão inválida.');
     const id=Number(target[1]);
     const listing=await db.prepare("SELECT seller_id FROM marketplace_listings WHERE id=? AND status='pending'").bind(id).first();if(!listing)throw new Failure('Anúncio pendente não encontrado.',404);
-    if(data.status==='published'){
-     const seller=await db.prepare('SELECT status FROM marketplace_sellers WHERE id=?').bind(listing.seller_id).first();
-     if(seller?.status!=='approved')throw new Failure('O vendedor precisa ser aprovado pela administração antes da publicação.',409);
-    }
-    await db.batch([db.prepare("INSERT INTO marketplace_moderation_log(admin_id,listing_id,action) SELECT ?,id,? FROM marketplace_listings WHERE id=? AND status='pending'").bind(account.id,data.status,id),db.prepare("UPDATE marketplace_listings SET status=? WHERE id=? AND status='pending'").bind(data.status,id)]);
+    const [updated]=await db.batch([
+     db.prepare("UPDATE marketplace_listings SET status=? WHERE id=? AND status='pending' AND (?='rejected' OR EXISTS (SELECT 1 FROM marketplace_sellers s WHERE s.id=marketplace_listings.seller_id AND s.status='approved' AND s.verified_whatsapp=s.whatsapp))").bind(data.status,id,data.status),
+     db.prepare("INSERT INTO marketplace_moderation_log(admin_id,listing_id,action) SELECT ?,?,? WHERE changes()=1").bind(account.id,id,data.status)
+    ]);
+    if(!(updated as {meta:{changes:number}}).meta.changes)throw new Failure('Confira o contato do vendedor e a situação atual do anúncio.',409);
     return reply({ok:true});
    }
   }

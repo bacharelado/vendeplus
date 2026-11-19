@@ -3,9 +3,12 @@ import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {PNG} from 'pngjs';
 import {chromium,expect} from '@playwright/test';
-import {accountId,projectName,publicPreviewUrl} from './connect-preview-database.mjs';
-const token=process.env.CLOUDFLARE_API_TOKEN,commit=process.env.GITHUB_SHA;
-if(!token||process.env.GITHUB_REF!=='refs/heads/feat/cloudinary-fotos-free'||!/^[a-f0-9]{40}$/.test(commit||''))throw Error('Auditoria exclusiva do commit da prévia.');
+import {applyMigrations,readMigrations} from './d1-migrations.mjs';
+import {accountId,projectName,databaseName,publicPreviewUrl} from './connect-preview-database.mjs';
+const token=process.env.CLOUDFLARE_API_TOKEN,commit=process.env.PREVIEW_SHA,branch=process.env.PREVIEW_BRANCH;
+const trustedPush=process.env.GITHUB_EVENT_NAME==='push'&&['feat/cloudinary-fotos-free','fix/piloto-poranga-agora'].includes(branch)&&process.env.GITHUB_REF==='refs/heads/'+branch&&process.env.GITHUB_SHA===commit;
+const manual=process.env.GITHUB_EVENT_NAME==='workflow_dispatch'&&process.env.GITHUB_REF==='refs/heads/main';
+if(!token||!(trustedPush||manual)||!branch||branch==='main'||!/^[a-f0-9]{40}$/.test(commit||''))throw Error('Auditoria exclusiva do commit da prévia.');
 const folder='artifacts/cloudinary-live',report={commit,started:new Date().toISOString(),checks:[],cleanup:false};
 await mkdir(folder,{recursive:true});
 const stamp=value=>{report.checks.push(value);console.log('QA_OK '+value)};
@@ -17,18 +20,28 @@ async function cloud(path,body){
 }
 const project=await cloud('/pages/projects/'+projectName);
 const db=project.deployment_configs?.preview?.d1_databases?.MARKETPLACE_DB?.id;
-assert.ok(db&&!Object.values(project.deployment_configs?.production?.d1_databases||{}).some(b=>b.id===db),'Prévia precisa de D1 isolado.');
+assert.ok(project.production_branch==='main'&&db&&!Object.values(project.deployment_configs?.production?.d1_databases||{}).some(b=>b.id===db),'Prévia precisa de D1 isolado.');
 const query=(sql,params=[])=>cloud('/d1/database/'+db+'/query',{sql,params});
 let deployment;
 for(let i=0;i<60;i++){
  const deployments=await cloud('/pages/projects/'+projectName+'/deployments?per_page=20');
- deployment=deployments.find(d=>d.environment==='preview'&&d.deployment_trigger?.metadata?.commit_hash===commit&&d.deployment_trigger?.metadata?.branch==='feat/cloudinary-fotos-free');
+ deployment=deployments.find(d=>d.environment==='preview'&&d.deployment_trigger?.metadata?.commit_hash===commit&&d.deployment_trigger?.metadata?.branch===branch);
  if(deployment?.latest_stage?.name==='deploy'&&deployment.latest_stage.status==='success')break;
  if(deployment&&['failure','canceled','cancelled'].includes(deployment.latest_stage?.status))throw Error('Deploy da prévia falhou.');
  await new Promise(resolve=>setTimeout(resolve,5000));
 }
 assert.equal(deployment?.latest_stage?.name,'deploy');assert.equal(deployment?.latest_stage?.status,'success');
 const origin=publicPreviewUrl(deployment.url);report.preview=origin;
+const database=await cloud('/d1/database/'+db);
+assert.equal(database.name,databaseName);assert.equal(database.uuid,db);
+const current=await cloud('/pages/projects/'+projectName);
+assert.equal(current.production_branch,'main');
+assert.equal(current.deployment_configs?.preview?.d1_databases?.MARKETPLACE_DB?.id,db);
+assert.ok(!Object.values(current.deployment_configs?.production?.d1_databases||{}).some(b=>b.id===db));
+const migrations=await readMigrations();
+await applyMigrations(query,migrations);
+assert.deepEqual(await applyMigrations(query,migrations),[]);
+stamp('D1 exclusivo da prévia atualizado e segunda execução sem pendências');
 const idTag=randomBytes(10).toString('hex'),emails=[0,1].map(i=>'qa-cloudinary-'+idTag+'-'+i+'@example.invalid');
 const password='Qa!'+randomBytes(24).toString('base64url');
 const sessions=[],accounts=[],listings=[];
@@ -56,6 +69,30 @@ try{
  const created=await request('/api/account/listings',{method:'POST',body:offer,cookie:sessions[0]});
  assert.equal(created.status,201);assert.equal(created.body.status,'published');const id=created.body.id;listings.push(id);
  stamp('Publicação automática real de anúncio QA');
+ const publicOffer=await request('/api/listings?id='+id);
+ assert.equal(publicOffer.body.listings[0].canContact,false);
+ assert.equal(publicOffer.body.listings[0].contactWhatsapp,undefined);
+ const beforeContact=await fetch(origin+'/api/contact?listing='+id,{redirect:'manual'});
+ assert.equal(beforeContact.status,404);
+ // Only the exact second QA account can act as the temporary moderator.
+ const [promoted]=await query("UPDATE marketplace_accounts SET role='admin' WHERE id=? AND email=? AND role='seller' RETURNING id",[accounts[1],emails[1]]);
+ assert.equal(promoted.results[0]?.id,accounts[1]);
+ const profile=await request('/api/account/profile',{cookie:sessions[0]});
+ const verification=await request('/api/account/admin/sellers/'+accounts[0]+'/contact',{method:'POST',cookie:sessions[1],
+   body:{confirmContact:true,whatsapp:profile.body.profile.whatsapp,code:profile.body.profile.contactCode}});
+ assert.equal(verification.status,200);
+ const destination=await fetch(origin+'/api/contact?listing='+id,{redirect:'manual'});
+ assert.equal(destination.status,302);
+ const target=new URL(destination.headers.get('Location'));
+ assert.equal(target.origin,'https://wa.me');assert.equal(target.pathname,'/5592000000000');
+ assert.ok(target.searchParams.get('text').includes(title));
+ const feedback=await request('/api/sellers/'+accounts[0]+'/report',{method:'POST',body:{reason:'other',details:'Teste do piloto'}});
+ assert.equal(feedback.status,201);
+ const queue=await request('/api/account/admin/reports',{cookie:sessions[1]});
+ const ticket=queue.body.reports.find(r=>r.kind==='seller'&&r.sellerId===accounts[0]);assert.ok(ticket);
+ assert.equal((await request('/api/account/admin/reports/seller/'+ticket.id,{method:'POST',cookie:sessions[1],body:{decision:'dismissed'}})).status,200);
+ stamp('Contato QA confirmado, destino conferido sem enviar mensagem e denúncia de perfil decidida');
+
  const pixels=Buffer.alloc(320*240*4);
  for(let y=0;y<240;y++)for(let x=0;x<320;x++){const n=(y*320+x)*4;pixels[n]=x%256;pixels[n+1]=y%256;pixels[n+2]=160;pixels[n+3]=255;}
  const png=PNG.sync.write({width:320,height:240,data:pixels});
@@ -92,7 +129,7 @@ try{
  const separator=sessions[0].indexOf('=');
  await sellerContext.addCookies([{name:sessions[0].slice(0,separator),value:sessions[0].slice(separator+1),url:origin,httpOnly:true,secure:true,sameSite:'Lax'}]);
  const sellerPage=await sellerContext.newPage();
- await sellerPage.goto(origin+'/#conta');
+ await sellerPage.goto(origin+'/#area');
  const owned=sellerPage.locator('.account-offer').filter({hasText:title+' EDITADO'});
  await expect(owned).toBeVisible();
  await owned.getByRole('button',{name:'Editar',exact:true}).click();
@@ -138,6 +175,8 @@ finally{
    for(const {id} of found?.[0]?.results||[]){
     // Exact generated email + account ID; never delete real accounts.
     for(const [sql,params] of [
+     ['DELETE FROM marketplace_seller_reports WHERE seller_id=?',[id]],
+     ['DELETE FROM marketplace_seller_reviews WHERE seller_id=?',[id]],
      ['DELETE FROM marketplace_reports WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_id=?)',[id]],
      ['DELETE FROM marketplace_listing_events WHERE seller_id=?',[id]],
      ['DELETE FROM marketplace_listing_details WHERE seller_id=?',[id]],

@@ -7,7 +7,7 @@ Produto da APOCALYPTIC para aproximar compradores e vendedores de Poranga I, Por
 - **Site oficial (Cloudflare Pages):** https://vendeplus.pages.dev/
 - **Código oficial:** branch `main`, no repositório `bacharelado/vendeplus`.
 - **Prévia:** branches e pull requests do Cloudflare Pages, com banco `vendeplus-preview` separado do banco de produção `vendeplus-production`.
-- **Fluxo de atualização:** programar → publicar em `main` → Cloudflare Pages.
+- Abrir um PR, validar na prévia e liberar manualmente o SHA aprovado no Pages. O procedimento está no [plano do piloto](docs/OPERACAO-PILOTO.md#liberação-acompanhada-no-poranga-ii).
 - O pipeline **Workers Builds** é separado do Pages e vem apresentando falha de configuração relacionada a `previews`. O sucesso de Pages não prova o sucesso de Workers Builds; não confundir os dois.
 - Verificar o resultado da Cloudflare Pages após cada merge. Não alterar segredos, dados reais, migrar bancos ou contratar serviços por causa de um deploy.
 
@@ -39,8 +39,9 @@ Rotas antigas continuam compatíveis. Veja [Navegação](docs/NAVEGACAO.md).
 - `GET /api/listings`: catálogo público, consulta por ID e paginação por cursor; resultados retornam até 200 itens por chamada.
 - `/api/account/*`: cadastro, login, sessão, publicação, edição, pausa, reativação e administração conforme autorização.
 - `GET/POST /api/media-upload`: disponibilidade e upload de imagens associado a anúncio do proprietário.
-- `GET /api/media/*`: entrega de imagem apenas quando vinculada a anúncio publicado permitido.
+- `GET /api/media/*`: imagem pública de anúncio publicado ou miniatura privada na sessão do proprietário.
 - `GET /api/sellers/*`: perfil público e anúncios publicados.
+- `GET /api/contact` abre o WhatsApp do anúncio ou da vitrine após conferir confirmação, visibilidade e consentimento aplicável.
 - `POST /api/reports`: registro de denúncia.
 - `POST /api/photo-analyze`: **desativado**. Não há preenchimento automático com IA no produto atual.
 
@@ -80,7 +81,7 @@ Os testes devem evitar alterações em contas/anúncios reais. Testes de integra
 ## Pendências abertas
 
 1. Ferramenta segura de redefinição para pedidos recebidos no WhatsApp, com verificação de titularidade e auditoria; o contato já está disponível no login.
-2. Verificação do controle do telefone/WhatsApp e política adequada para o estado de vendedor pendente.
+2. Acompanhar o prazo de confirmação manual do WhatsApp dos primeiros vendedores.
 3. Termos, política de privacidade, retenção e exclusão de dados em conformidade com as exigências aplicáveis.
 4. Tratamento de denúncias, recurso de contestação, limites de abuso e autenticação forte para administração.
 5. Testes de carga, monitoramento de saúde/custos, backup e recuperação.
@@ -91,6 +92,6 @@ Os testes devem evitar alterações em contas/anúncios reais. Testes de integra
 
 ## Regras de operação
 
-Orçamento autorizado: **R$ 0**. Não ativar serviços pagos ou expor chaves do Cloudinary, tokens da Cloudflare ou dados pessoais em commits e relatórios. Usar o ciclo **programar → publicar**, conforme decisão do fundador em 12 de novembro de 2026. Os workflows automáticos existentes continuam configurados; testes reais exigem consentimento e escopo controlado.
+Orçamento autorizado: **R$ 0**. Não ativar serviços pagos ou expor chaves do Cloudinary, tokens da Cloudflare ou dados pessoais em commits e relatórios. A liberação de produção segue o plano do piloto e os checks do commit final.
 
 Consulte o [índice de documentação](docs/README.md) para navegação, operação, segurança e registros históricos.

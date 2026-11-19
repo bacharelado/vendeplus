@@ -1,14 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DatabaseSync} from 'node:sqlite';
-import {readFile} from 'node:fs/promises';
+import {database} from './helpers/database.mjs';
 import {handleAccount,passwordHash,passwordMatches} from '../functions/_shared/account.ts';
 import {catalogQuery} from '../functions/_shared/catalog-query.ts';
-const baseMigrations=(await Promise.all(['0001_marketplace','0002_accounts','0003_vendeplus_2'].map(name=>readFile(new URL('../migrations/'+name+'.sql',import.meta.url),'utf8')))).join('\n');
-const latestMigrations=(await Promise.all(['0004_password_resets','0005_seller_showcase'].map(name=>readFile(new URL('../migrations/'+name+'.sql',import.meta.url),'utf8')))).join('\n');
 function harness(){
- const sqlite=new DatabaseSync(':memory:');sqlite.exec(baseMigrations);sqlite.exec(baseMigrations);sqlite.exec(latestMigrations);
- const db={prepare(sql){let values=[];const stmt={bind(...args){values=args;return stmt},async first(){return sqlite.prepare(sql).get(...values)||null},async all(){return {results:sqlite.prepare(sql).all(...values)}},async run(){return {meta:sqlite.prepare(sql).run(...values)}}};return stmt},async batch(statements){sqlite.exec('BEGIN');try{const result=[];for(const stmt of statements)result.push(await stmt.run());sqlite.exec('COMMIT');return result}catch(error){sqlite.exec('ROLLBACK');throw error}}};
+ const {sqlite,db}=database();
  const request=async(path,method='GET',data,cookie='',extra={})=>{const response=await handleAccount({request:new Request('https://preview.vendeplus.pages.dev/api/account/'+path,{method,headers:{Origin:'https://preview.vendeplus.pages.dev','Content-Type':'application/json',Cookie:cookie,...extra},body:data===undefined?undefined:JSON.stringify(data)}),env:{MARKETPLACE_DB:db}});return {status:response.status,body:await response.json(),cookie:response.headers.get('Set-Cookie'),headers:response.headers}};
  return {sqlite,request};
 }
@@ -46,7 +42,7 @@ test('somente admin revisa vendedor e anúncio, deixando trilha no banco',async(
  const created=await h.request('listings','POST',{...offer(),title:'Documentos falsos para revisão'},owner.cookie),id=created.body.id;assert.equal(created.body.status,'pending');
  assert.equal((await h.request(`moderation/${id}`,'POST',{status:'published'},admin.cookie)).status,409);
  assert.equal((await h.request(`moderation/${id}/seller`,'POST',{},admin.cookie)).status,400);
- assert.equal((await h.request(`moderation/${id}/seller`,'POST',{confirmContact:true},admin.cookie)).status,200);
+ assert.equal((await h.request(`moderation/${id}/seller`,'POST',{confirmContact:true,whatsapp:registration().whatsapp,code:(await h.request('profile','GET',undefined,owner.cookie)).body.profile.contactCode},admin.cookie)).status,200);
  assert.equal((await h.request(`moderation/${id}`,'POST',{status:'published'},admin.cookie)).status,200);assert.equal(h.sqlite.prepare(catalogQuery).all().length,1);
  assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM marketplace_seller_reviews').get().n,1);assert.equal(h.sqlite.prepare('SELECT count(*) AS n FROM marketplace_moderation_log').get().n,1);
  assert.equal((await h.request('listings/'+id,'PATCH',{status:'sold'},owner.cookie)).status,200);assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
@@ -173,7 +169,7 @@ test('pausa é preservada na edição e reativação sinalizada aguarda revisão
  const corrected=await h.request('listings/'+id,'PATCH',{...offer(),action:'edit'},owner.cookie);
  assert.equal(corrected.status,200);assert.equal(corrected.body.status,'pending');
  assert.equal(h.sqlite.prepare(catalogQuery).all().length,0);
- assert.equal((await h.request('moderation/'+id+'/seller','POST',{confirmContact:true},admin.cookie)).status,200);
+ assert.equal((await h.request('moderation/'+id+'/seller','POST',{confirmContact:true,whatsapp:registration().whatsapp,code:(await h.request('profile','GET',undefined,owner.cookie)).body.profile.contactCode},admin.cookie)).status,200);
  assert.equal((await h.request('moderation/'+id,'POST',{status:'published'},admin.cookie)).status,200);
  assert.equal(h.sqlite.prepare(catalogQuery).all().length,1);
 });
