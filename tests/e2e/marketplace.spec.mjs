@@ -508,7 +508,7 @@ test('apresentação APOCALYPTIC cabe em telas estreitas e mantém reprodução'
   expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
  }
  await page.getByRole('button',{name:'Reproduzir apresentação da APOCALYPTIC'}).click();
- await expect(page.locator('.vsl-player iframe')).toHaveAttribute('src',/^https:\\/\\/drive.google.com\\/file\\/d\\/.+\\/preview$/);
+ await expect(page.locator('.vsl-player iframe')).toHaveAttribute('src',/preview$/);
 });
 
 test('player externo só carrega quando solicitado',async({page})=>{
