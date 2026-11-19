@@ -62,7 +62,7 @@ export function App(){
     fetchCatalogPage(controller.signal).then(page=>{if(!disposed){setCatalog({kind:'ready',listings:page.listings});setNextCursor(page.nextCursor)}}).catch(()=>{if(!disposed)setCatalog({kind:'unavailable',listings:[]})}).finally(()=>clearTimeout(timer));
     return ()=>{disposed=true;controller.abort();clearTimeout(timer)};
   },[refresh,route.name]);
-  useEffect(()=>{const titles:Record<string,string>={inicio:'Compre e venda em Poranga e Jacarezinho',entrar:route.recover?'Ajuda para entrar':'Entrar ou cadastrar',area:'Minha área',publicar:route.editId?'Editar anúncio':'Publicar anúncio',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor'};document.title=`${titles[route.name]||'Página não encontrada'} | VENDE+`},[route.name,route.editId,route.recover]);
+  useEffect(()=>{const titles:Record<string,string>={inicio:'Marketplace VENDE+ — Itacoatiara',entrar:route.recover?'Ajuda para entrar':'Entrar ou cadastrar',area:'Minha área',publicar:route.editId?'Editar anúncio':'Publicar anúncio',admin:'Administração',anuncio:'Detalhes do anúncio',vendedor:'Perfil do vendedor'};document.title=`${titles[route.name]||'Página não encontrada'} | VENDE+`},[route.name,route.editId,route.recover]);
   useEffect(()=>{if(route.section)requestAnimationFrame(()=>document.getElementById(route.section!)?.scrollIntoView({block:'start'}))},[route.name,route.section]);
   useEffect(()=>{if(route.name==='anuncio'&&detail.kind==='ready'&&detail.id===route.id&&detail.listing){document.title=`${detail.listing.title} | VENDE+`}},[route.name,route.id,detail]);
   const reset=()=>{setQuery('');setCategory('Todas');setNeighborhood('Todos');setSortOrder('recentes')};
@@ -90,19 +90,19 @@ export function App(){
     setDialog({title:copied?'Link copiado':'Compartilhar anúncio',content:<><p>{copied?'Envie o endereço para quem pode se interessar.':'Selecione o endereço abaixo para copiar e enviar.'}</p><label className="share-label">Link do anúncio<input readOnly value={link} onFocus={e=>e.currentTarget.select()}/></label></>});
   };
   useEffect(()=>{const reload=()=>{if(document.visibilityState==='visible'&&['inicio','anuncio'].includes(route.name))setRefresh(value=>value+1)};document.addEventListener('visibilitychange',reload);return ()=>document.removeEventListener('visibilitychange',reload)},[route.name]);
-  const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando anúncios…</div>:catalog.kind==='unavailable'?<Empty title="Não foi possível carregar os anúncios"><p>Tente novamente em alguns instantes.</p><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:browsing?<Empty title="Nenhum anúncio encontrado" icon="search"><p>Experimente outra busca ou explore todas as categorias.</p><button className="button outline" onClick={reset}>Ver todos os anúncios</button></Empty>:<Empty title="Ainda não há anúncios no bairro" icon="search"><p>O VENDE+ cresce com anúncios reais. Que tal começar pelo seu?</p><a className="button primary" href={ROUTES.publish}>Publicar meu anúncio</a></Empty>;
+  const catalogContent=()=>catalog.kind==='loading'?<div className="catalog-loading" role="status"><span className="spinner"/>Buscando anúncios…</div>:catalog.kind==='unavailable'?<Empty title="Não foi possível carregar os anúncios"><p>Tente novamente em alguns instantes.</p><button className="button outline" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></Empty>:filtered.length?<div className="product-grid">{filtered.map(item=><ListingCard key={item.id} listing={item}/>)}</div>:browsing?<Empty title="Nenhum anúncio encontrado" icon="search"><p>Experimente outra busca ou explore todas as categorias.</p><button className="button outline" onClick={reset}>Ver todos os anúncios</button></Empty>:<Empty title="Ainda não há anúncios disponíveis" icon="search"><p>O VENDE+ cresce com anúncios reais. Que tal começar pelo seu?</p><a className="button primary" href={ROUTES.publish}>Publicar meu anúncio</a></Empty>;
   return <div className="app dark">
     <a href="#conteudo" className="skip-link" onClick={e=>{e.preventDefault();mainRef.current?.focus()}}>Pular para o conteúdo</a>
-    <div className="location-strip"><div className="container"><span><Icon name="pin"/>Feito para Poranga e Jacarezinho</span></div></div>
-    <header className="topbar buyer-header"><div className="container header-row"><a className="brand" href={ROUTES.home} aria-label="VENDE+ início">VENDE<span>+</span></a><nav aria-label="Menu principal"><a href={ROUTES.home} onClick={e=>{e.preventDefault();browse()}} aria-current={route.name==='inicio'?'page':undefined}>Ver anúncios</a><a href={ROUTES.account} aria-current={route.name==='area'?'page':undefined}>Minha área</a></nav><a href={ROUTES.publish} className="button primary seller-cta"><Icon name="plus"/>Anunciar</a></div></header>
+    <div className="location-strip"><div className="container"><span><Icon name="pin"/>VENDE+ ITA · Itacoatiara, Amazonas</span></div></div>
+    <header className="topbar buyer-header"><div className="container header-row"><a className="brand" href={ROUTES.home} aria-label="VENDE+ ITA — início">VENDE<span>+</span><small className="brand-region">ITA</small></a><nav aria-label="Menu principal"><a href={ROUTES.home} onClick={e=>{e.preventDefault();browse()}} aria-current={route.name==='inicio'?'page':undefined}>Ver anúncios</a><a href={ROUTES.account} aria-current={route.name==='area'?'page':undefined}>Minha área</a></nav><a href={ROUTES.publish} className="button primary seller-cta"><Icon name="plus"/>Anunciar</a></div></header>
     <main ref={mainRef} id="conteudo" tabIndex={-1} className="container main">
       {notice&&<div className="notice" role="status">{notice}<button className="icon-button" onClick={()=>setNotice('')} aria-label="Fechar aviso"><Icon name="close"/></button></div>}
       {route.name==='inicio'&&<div className="buyer-home marketplace-home">
         <section className="discover-hero" aria-label="Encontre no VENDE+">
           <div className="discover-hero-copy">
-            <span className="discover-eyebrow"><Icon name="pin"/> O MARKETPLACE DO SEU BAIRRO</span>
-            <h1>Tudo perto de você.<span> Em um só lugar.</span></h1>
-            <p>Encontre produtos e serviços em Poranga I, Poranga II e Jacarezinho. Negocie direto com quem anuncia.</p>
+            <span className="discover-eyebrow"><Icon name="pin"/> MARKETPLACE VENDE+ · ITACOATIARA</span>
+            <h1>Compre e venda<span> na sua cidade.</span></h1>
+            <p>Explore anúncios de vendedores de Itacoatiara, começando por Poranga I, Poranga II e Jacarezinho. Fale diretamente com quem anuncia.</p>
             <label className="simple-market-search discover-search">
               <Icon name="search"/>
               <input name="q" type="search" aria-label="Buscar anúncios" placeholder="O que você está procurando?" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/>
@@ -110,9 +110,9 @@ export function App(){
             </label>
           </div>
           <aside className="discover-hero-panel" aria-label="Por que usar o VENDE+">
-            <span className="discover-panel-kicker">SEU BAIRRO, SUAS OPORTUNIDADES</span>
+            <span className="discover-panel-kicker">SUA CIDADE, NOVAS OPORTUNIDADES</span>
             <div className="discover-panel-mark">VENDE<span>+</span></div>
-            <div className="discover-panel-list"><span><Icon name="check"/> Explore sem cadastro</span><span><Icon name="message-circle"/> Contato pelo WhatsApp</span><span><Icon name="pin"/> Negocie perto de casa</span></div>
+            <div className="discover-panel-list"><span><Icon name="check"/> Explore sem cadastro</span><span><Icon name="message-circle"/> Contato pelo WhatsApp</span><span><Icon name="pin"/> Encontre ofertas locais</span></div>
             <a href={ROUTES.publish} className="discover-panel-link">Quero anunciar <Icon name="arrow"/></a>
           </aside>
         </section>
@@ -125,16 +125,16 @@ export function App(){
           </div>
         </section>
 
-        <section id="ofertas" className="buyer-offers market-offers" aria-label="Anúncios do bairro">
+        <section id="ofertas" className="buyer-offers market-offers" aria-label="Anúncios locais">
           <div className="market-offers-heading">
-            <div><span className="market-section-kicker">DESCUBRA PERTO DE VOCÊ</span><h2>Anúncios do bairro</h2><p>Veja o que as pessoas estão anunciando.</p></div>
+            <div><span className="market-section-kicker">DESCUBRA EM ITACOATIARA</span><h2>Explore os anúncios</h2><p>Veja o que as pessoas estão anunciando.</p></div>
             <div className="market-offers-tools">
               {catalog.kind==='ready'&&<span className="simple-market-count" role="status" aria-live="polite">{filtered.length} {filtered.length===1?'anúncio':'anúncios'}</span>}
               {(browsing||sortOrder!=='recentes')&&<button type="button" className="market-reset" onClick={reset}>Ver tudo <Icon name="close"/></button>}
             </div>
           </div>
           <div className="catalog-controls">
-            <p className="catalog-context">{query.trim()?<>Resultados para <strong>“{query.trim()}”</strong></>:'Explore as ofertas do bairro'}{category!=='Todas'&&<> · {category}</>}</p>
+            <p className="catalog-context">{query.trim()?<>Resultados para <strong>“{query.trim()}”</strong></>:'Explore as ofertas disponíveis em Itacoatiara'}{category!=='Todas'&&<> · {category}</>}</p>
             <div className="catalog-selects">
               <label><span>Bairro</span><select value={neighborhood} onChange={e=>setNeighborhood(e.target.value)}><option value="Todos">Todos os bairros</option><option>Poranga I</option><option>Poranga II</option><option>Jacarezinho</option></select></label>
               <label><span>Ordenar por</span><select value={sortOrder} onChange={e=>setSortOrder(e.target.value as 'recentes'|'menor'|'maior')}><option value="recentes">Mais recentes</option><option value="menor">Menor preço</option><option value="maior">Maior preço</option></select></label>
@@ -147,7 +147,7 @@ export function App(){
               <div className="market-discovery-stamp"><Icon name="plus"/></div>
               <span className="market-section-kicker">TEM ESPAÇO PRA VOCÊ</span>
               <h3>Seu próximo anúncio pode estar aqui.</h3>
-              <p>Tem algo para vender ou um serviço para oferecer? Publique no bairro e converse diretamente com interessados.</p>
+              <p>Tem algo para vender ou um serviço para oferecer? Publique seu anúncio e converse diretamente com interessados.</p>
               <a className="button primary" href={ROUTES.publish}><Icon name="plus"/> Criar meu anúncio</a>
             </aside>}
           </div>
@@ -157,7 +157,7 @@ export function App(){
         <VideoFeature/>
 
         <section id="como-comprar" className="market-guide" aria-labelledby="market-guide-title">
-          <div className="market-guide-heading"><span className="market-section-kicker">SIMPLES ASSIM</span><h2 id="market-guide-title">Encontre, converse e combine.</h2><p>O VENDE+ conecta pessoas do bairro. A negociação é feita diretamente entre comprador e vendedor.</p></div>
+          <div className="market-guide-heading"><span className="market-section-kicker">SIMPLES ASSIM</span><h2 id="market-guide-title">Encontre, converse e combine.</h2><p>O VENDE+ aproxima compradores e vendedores da cidade. A negociação é feita diretamente entre comprador e vendedor.</p></div>
           <div className="market-guide-steps">
             <div><span className="market-guide-icon"><Icon name="search"/></span><strong>1. Explore anúncios</strong><p>Encontre produtos e serviços que estão sendo oferecidos.</p></div>
             <div><span className="market-guide-icon"><Icon name="message-circle"/></span><strong>2. Chame no WhatsApp</strong><p>Converse diretamente com a pessoa que anunciou.</p></div>
@@ -175,9 +175,9 @@ export function App(){
       {route.recover&&<AccountSupport/>}
       {!route.recover&&['entrar','area','publicar'].includes(route.name)&&<SellerArea key={route.name+':'+(route.draftId||route.editId||(route.register?'cadastro':''))} view={route.name as 'entrar'|'area'|'publicar'} draftId={route.draftId} editId={route.editId}/>}
       {route.name==='admin'&&<SellerArea admin/>}
-      {route.name==='indisponivel'&&<Empty title="Página não encontrada" icon="search"><p>Continue explorando as oportunidades do bairro.</p><a href={ROUTES.home} className="button primary">Voltar ao início</a></Empty>}
+      {route.name==='indisponivel'&&<Empty title="Página não encontrada" icon="search"><p>Continue explorando as oportunidades locais.</p><a href={ROUTES.home} className="button primary">Voltar ao início</a></Empty>}
     </main>
-    <footer className="footer"><div className="container footer-grid"><div><a className="brand" href={ROUTES.home}>VENDE<span>+</span></a><p>O comércio do seu bairro,<br/>com novas possibilidades.</p><span className="footer-location"><Icon name="pin"/>Poranga e Jacarezinho</span></div><div><h2>VENDE+</h2><a href={ROUTES.catalog}>Ver anúncios</a><a href={ROUTES.account}>Minha área</a><p>Um produto APOCALYPTIC.</p></div><div className="footer-contact"><h2>Fale com o criador</h2><p>Conecte-se com Helio ou fale diretamente pelo WhatsApp.</p><div className="footer-socials" aria-label="Redes sociais e contato do criador"><a className="footer-social" href="https://www.facebook.com/semessademehackear" target="_blank" rel="noopener noreferrer" aria-label="Facebook pessoal de Helio"><Icon name="facebook"/><span>Facebook</span></a><a className="footer-social" href="https://www.instagram.com/euuheliooaq" target="_blank" rel="noopener noreferrer" aria-label="Instagram pessoal de Helio"><Icon name="instagram"/><span>Instagram</span></a><a className="footer-social" href="https://wa.me/559281660856" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp pessoal de Helio"><Icon name="whatsapp"/><span>WhatsApp</span></a></div></div></div><div className="container footer-bottom"><span>© {new Date().getFullYear()} VENDE+ · APOCALYPTIC</span><span>Negocie com atenção. Valorize o comércio local.</span></div></footer>
+    <footer className="footer"><div className="container footer-grid"><div><a className="brand" href={ROUTES.home}>VENDE<span>+</span></a><p>Compre e venda na sua cidade.<br/>Marketplace VENDE+ ITA.</p><span className="footer-location"><Icon name="pin"/>Itacoatiara, Amazonas</span></div><div><h2>VENDE+ ITA</h2><a href={ROUTES.catalog}>Ver anúncios</a><a href={ROUTES.account}>Minha área</a><p>Um produto APOCALYPTIC.</p></div><div className="footer-contact"><h2>Fale com o criador</h2><p>Conecte-se com Helio ou fale diretamente pelo WhatsApp.</p><div className="footer-socials" aria-label="Redes sociais e contato do criador"><a className="footer-social" href="https://www.facebook.com/semessademehackear" target="_blank" rel="noopener noreferrer" aria-label="Facebook pessoal de Helio"><Icon name="facebook"/><span>Facebook</span></a><a className="footer-social" href="https://www.instagram.com/euuheliooaq" target="_blank" rel="noopener noreferrer" aria-label="Instagram pessoal de Helio"><Icon name="instagram"/><span>Instagram</span></a><a className="footer-social" href="https://wa.me/559281660856" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp pessoal de Helio"><Icon name="whatsapp"/><span>WhatsApp</span></a></div></div></div><div className="container footer-bottom"><span>© {new Date().getFullYear()} VENDE+ · APOCALYPTIC</span><span>Compre e venda na sua cidade. Negocie com atenção.</span></div></footer>
     <nav className="mobile-bottom" aria-label="Atalhos para celular">{MOBILE_NAV.map(({id,label,icon,href})=><a key={id} href={href} aria-current={route.name===id?'page':undefined}><Icon name={icon}/>{label}</a>)}</nav>
     {dialog&&<Modal title={dialog.title} onClose={()=>setDialog(null)}>{dialog.content}</Modal>}
   </div>;
