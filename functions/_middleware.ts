@@ -26,7 +26,7 @@ export async function onRequest({request, next}: PagesContext): Promise<Response
   }
   const headers = new Headers(response.headers);
   headers.set('Content-Security-Policy', policy + (url.protocol === 'https:' ? '; upgrade-insecure-requests' : ''));
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (!headers.has('Referrer-Policy')) headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('X-Frame-Options', 'DENY');
   headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');

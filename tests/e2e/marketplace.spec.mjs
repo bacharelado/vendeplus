@@ -283,8 +283,8 @@ test('detalhe mostra contato somente quando fornecido pela API e oferece cópia 
 });
 
 test('contato real fornecido gera somente um link sem envio automático',async({page})=>{
-  await catalog(page,[{...items[0],contactWhatsapp:'5592000000000'}]);await page.goto('/#anuncio-101');
-  const link=page.getByRole('link',{name:/Conversar no WhatsApp/});await expect(link).toHaveAttribute('href',/^https:\/\/wa.me\/5592000000000\?text=/);
+  await catalog(page,[{...items[0],canContact:true}]);await page.goto('/#anuncio-101');
+  const link=page.getByRole('link',{name:/Conversar no WhatsApp/});await expect(link).toHaveAttribute('href','/api/contact?listing=101');
   await expect(link).toHaveAttribute('rel','noopener noreferrer');
 });
 
@@ -542,6 +542,20 @@ test('foto pode ser reenviada após falha sem criar outro anúncio',async({page}
  await page.getByRole('button',{name:'Tentar enviar a foto novamente',exact:true}).click();
  await expect(page.getByRole('status').filter({hasText:'Foto salva no anúncio.'})).toBeVisible();
  expect(writes).toBe(1);expect(uploads).toBe(2);
+});
+
+test('resposta perdida após a gravação confirma a foto pelo recibo do anúncio',async({page})=>{
+ await catalog(page);await seller(page);let receipt='',uploads=0;
+ await page.route('**/api/media-upload?listingId=123',async route=>{
+  receipt=route.request().headers()['x-photo-request'];uploads++;await route.abort('connectionreset');
+ });
+ await page.route('**/api/account/listings/123/photo',route=>route.fulfill({json:{photoVersion:receipt}}));
+ await fillListing(page);
+ await page.getByLabel('Foto do produto (opcional)').setInputFiles('tests/fixtures/product-upload.jpg');
+ await page.getByRole('button',{name:'Publicar anúncio',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Foto confirmada no anúncio.'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Tentar enviar a foto novamente'})).toHaveCount(0);
+ expect(receipt).toMatch(/^[a-f0-9-]{36}$/);expect(uploads).toBe(1);
 });
 
 test('perfil com falha permite tentar novamente e trocar de vendedor limpa dados anteriores',async({page})=>{

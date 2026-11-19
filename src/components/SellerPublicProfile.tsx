@@ -4,7 +4,7 @@ import {decodeListings} from '../lib/api';
 import {ROUTES} from '../lib/routes.mjs';
 import type {Listing} from '../data/marketplace';
 
-type Seller={id:string;name:string;neighborhood:string;bio:string;slug?:string;sellerType:'person'|'business';businessName?:string;avatarUrl?:string;coverUrl?:string;contactWhatsapp?:string;createdAt:number;activeListings:number};
+type Seller={id:string;name:string;neighborhood:string;bio:string;slug?:string;sellerType:'person'|'business';businessName?:string;avatarUrl?:string;coverUrl?:string;canContact?:boolean;createdAt:number;activeListings:number};
 
 export function SellerPublicProfile({id}:{id:string}){
  const [seller,setSeller]=useState<Seller|null>(null),[listings,setListings]=useState<Listing[]>([]);
@@ -23,7 +23,7 @@ export function SellerPublicProfile({id}:{id:string}){
  const sendReport=async(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form));setNotice('');try{const r=await fetch('/api/sellers/'+encodeURIComponent(id)+'/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const value=await r.json();if(!r.ok)throw Error(value.error||'Não foi possível enviar.');setNotice('Denúncia recebida para análise.');setReport(false);form.reset()}catch(error){setNotice(error instanceof Error?error.message:'Não foi possível enviar.')}};
  const since=seller?.createdAt?new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(seller.createdAt*1000)):'';
  const title=seller?.sellerType==='business'&&seller.businessName?seller.businessName:seller?.name;
- const whatsapp=seller?.contactWhatsapp?'https://wa.me/'+seller.contactWhatsapp+'?text='+encodeURIComponent('Olá! Encontrei sua vitrine no VENDE+ e gostaria de conversar sobre seus anúncios.'):'';
+ const whatsapp=seller?.canContact?'/api/contact?seller='+encodeURIComponent(seller.id):'';
  return <section className="seller-public"><a className="back" href={ROUTES.catalog}>Voltar às ofertas</a>
   {status?<div className="panel"><p role="status">{status}</p>{failed&&<button className="button outline" onClick={()=>setAttempt(v=>v+1)}>Tentar novamente</button>}</div>:seller&&<>
    <header className="seller-showcase">

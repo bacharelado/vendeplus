@@ -16,13 +16,13 @@ O vendedor pode retirar suas ofertas, pausar um anúncio publicado ou marcá-lo 
 
 ## Revisão
 
-`#admin` exige sessão administrativa. Uma conta comum recebe 403 da API, inclusive se tentar chamar os endpoints diretamente. A administração pode conferir o contato, registrar a aprovação do vendedor, aprovar ou rejeitar o anúncio. A confirmação de contato é humana: o sistema não envia código nem afirma que o telefone já foi verificado. Publicar exige aprovação prévia do vendedor. As decisões possuem registro de autor e data no D1.
+`#admin` exige sessão administrativa. Uma conta comum recebe 403 da API, inclusive se tentar chamar os endpoints diretamente. A administração pode conferir o contato, registrar a aprovação do vendedor, aprovar ou rejeitar o anúncio. O vendedor envia à equipe pelo WhatsApp cadastrado o código privado mostrado em Minha área. Aprovar manualmente uma oferta sinalizada exige um vendedor com contato confirmado. Ofertas comuns continuam com publicação automática. As decisões possuem registro de autor e data no D1.
 
 Nenhuma conta administrativa foi criada, promovida ou escolhida em nome do CEO. Para ativar a operação, o responsável deve criar a própria conta, indicar o identificador a ser autorizado e confirmar a promoção. A alteração deve ocorrer no banco da prévia, por um operador com acesso confiável, conferindo o identificador e o e-mail antes de atribuir `role='admin'`. Não existe endpoint de autopromoção, senha padrão ou opção de escolher o próprio papel.
 
 ## Implantação
 
-A migração `0002_accounts.sql` cria tabelas adicionais sem substituir dados existentes. Ambas as migrações são idempotentes. A automação lê os arquivos SQL em ordem, habilita a compatibilidade Node necessária à criptografia somente na prévia e refaz somente o deployment correspondente ao commit de desenvolvimento. Preserva bindings existentes e confere a configuração e o deployment de produção.
+Os preparadores da prévia e de produção conferem nomes e IDs de D1 e usam o mesmo histórico por banco. O executor compara as tabelas, colunas e índices legados com as migrações revisadas, completa a 0005 parcial e registra nome e checksum depois de conferir o esquema. Divergências interrompem a operação. A liberação está descrita no [plano do piloto](OPERACAO-PILOTO.md#liberação-acompanhada-no-poranga-ii).
 
 O fluxo de integração remoto cria duas contas com domínio reservado `.invalid` e senha aleatória gerada no runner, sem registrar credenciais. Envia um anúncio pendente e verifica login, persistência, isolamento, restrição administrativa, idempotência, ausência no catálogo e logout. Um bloco finally remove somente essas contas temporárias e seus anúncios do banco isolado da prévia. Nunca promove contas nem publica ofertas nesse teste.
 
@@ -30,4 +30,4 @@ O fluxo de integração remoto cria duas contas com domínio reservado `.invalid
 
 A execução [42417972491](https://github.com/bacharelado/vendeplus/actions/runs/42417972491), commit b4d3364, concluiu cadastro, login, sessões, envio real ao D1, isolamento, revisão e limpeza na Cloudflare. A prévia validada foi https://04f6a919.vendeplus.pages.dev. Testes SQLite locais também executam o fluxo de revisão com uma conta privilegiada criada exclusivamente na memória do teste.
 
-A primeira conta administradora ainda precisa ser escolhida pelo CEO. Recuperação de senha, confirmação de e-mail/telefone por códigos, envio de fotos, edição online e retomada de anúncios, denúncias, política de privacidade completa, exclusão de conta e ensaios de carga continuam necessários antes de abrir uma operação real. A versão principal não foi alterada nem recebeu estes recursos.
+A escolha do administrador e os testes com moradores são decisões operacionais do responsável pelo piloto. Recuperação assistida de conta, política de privacidade completa, exclusão de conta e ensaios de carga continuam no planejamento.

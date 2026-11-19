@@ -1,4 +1,5 @@
-import {readFile,readdir,appendFile} from 'node:fs/promises';
+import {applyMigrations,readMigrations,validateMigrations} from './d1-migrations.mjs';
+import {appendFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 
 export const accountId='3466eb459952187515061f97996a9a17';
@@ -17,11 +18,11 @@ export function publicPreviewUrl(value){
   return url.origin;
 }
 
-export async function connectPreviewDatabase({token,ref,commit,migration,fetchImpl=fetch,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),log=console.log,maxPolls=60}){
+export async function connectPreviewDatabase({token,ref,commit,migrations,fetchImpl=fetch,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),log=console.log,maxPolls=60}){
   if(ref!==`refs/heads/${branchName}`)throw new Error('Operação permitida somente na branch de desenvolvimento do VENDE+.');
   if(typeof token!=='string'||!token.trim()||/[\r\n]/.test(token))throw new Error('Adicione CLOUDFLARE_API_TOKEN aos segredos do repositório e execute novamente este job.');
   if(typeof commit!=='string'||!/^[a-f0-9]{40}$/i.test(commit))throw new Error('O commit da prévia não foi identificado.');
-  if(typeof migration!=='string'||!migration.includes('CREATE TABLE IF NOT EXISTS marketplace_listings'))throw new Error('Migração do VENDE+ ausente.');
+  validateMigrations(migrations);
   const root=`/accounts/${accountId}`;
   const projectPath=`${root}/pages/projects/${projectName}`;
   const call=async(path,method='GET',body)=>{
@@ -73,12 +74,11 @@ export async function connectPreviewDatabase({token,ref,commit,migration,fetchIm
   if(Object.values(latest.deployment_configs.production?.d1_databases||{}).some(binding=>binding?.id===database.uuid))throw new Error('O banco está vinculado à produção. A migração foi bloqueada.');
   if(canonical(latest.deployment_configs.preview?.d1_databases||{})!==canonical(existingBindings))throw new Error('As vinculações da prévia mudaram. Execute novamente para revisar o estado atual.');
   log('Aplicando as tabelas sem inserir anúncios ou vendedores.');
-  const queries=(await call(`${root}/d1/database/${database.uuid}/query`,'POST',{sql:migration})).result;
-  if(!Array.isArray(queries)||!queries.length||queries.some(item=>item.success!==true))throw new Error('A migração não foi confirmada integralmente.');
+  await applyMigrations(async(sql,params)=>(await call(root+'/d1/database/'+database.uuid+'/query','POST',{sql,params})).result,migrations);
   const schema=(await call(`${root}/d1/database/${database.uuid}/query`,'POST',{sql:"SELECT name FROM sqlite_master WHERE type='table' AND name IN ('marketplace_sellers','marketplace_listings') ORDER BY name;"})).result;
   const names=schema?.[0]?.results?.map(row=>row.name)||[];
   if(!names.includes('marketplace_listings')||!names.includes('marketplace_sellers'))throw new Error('As tabelas não foram confirmadas no banco remoto.');
-  const nodeRequired=migration.includes('CREATE TABLE IF NOT EXISTS marketplace_accounts');
+  const nodeRequired=migrations.some(m=>m.sql.includes('CREATE TABLE IF NOT EXISTS marketplace_accounts'));
   const previewConfig=before.deployment_configs.preview;
   const flags=[...new Set([...(previewConfig.compatibility_flags||[]),'nodejs_compat'])];
   const date=previewConfig.compatibility_date&&previewConfig.compatibility_date>'2025-04-08'?previewConfig.compatibility_date:'2025-04-08';
@@ -137,9 +137,8 @@ export async function connectPreviewDatabase({token,ref,commit,migration,fetchIm
 
 async function main(){
   try{
-    const files=(await readdir(new URL('../migrations/',import.meta.url))).filter(name=>/^\d{4}_[a-z0-9_]+\.sql$/.test(name)).sort();
-    const migration=(await Promise.all(files.map(name=>readFile(new URL('../migrations/'+name,import.meta.url),'utf8')))).join('\n');
-    const result=await connectPreviewDatabase({token:process.env.CLOUDFLARE_API_TOKEN,ref:process.env.GITHUB_REF,commit:process.env.GITHUB_SHA,migration});
+    const migrations=await readMigrations();
+    const result=await connectPreviewDatabase({token:process.env.CLOUDFLARE_API_TOKEN,ref:process.env.GITHUB_REF,commit:process.env.GITHUB_SHA,migrations});
     if(process.env.GITHUB_OUTPUT)await appendFile(process.env.GITHUB_OUTPUT,`preview_url=${result.previewUrl}\n`);
     if(process.env.GITHUB_STEP_SUMMARY)await appendFile(process.env.GITHUB_STEP_SUMMARY,`## Banco da prévia conectado\n\n- Banco: ${result.databaseName}\n- [Prévia validada](${result.previewUrl})\n- API: respondeu com ${result.listingCount} anúncio(s).\n- Configuração e deployment de produção preservados.\n- Nenhum anúncio fictício foi inserido.\n\nCadastro, sessões e envio para revisão devem passar pelo teste de integração da prévia. Nenhum administrador é criado automaticamente.\n`);
   }catch(error){

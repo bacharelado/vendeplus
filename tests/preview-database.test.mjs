@@ -1,16 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readMigrations} from '../scripts/d1-migrations.mjs';
+import {d1Query} from './helpers/d1-rest.mjs';
 import {connectPreviewDatabase,branchName,databaseName,publicPreviewUrl} from '../scripts/connect-preview-database.mjs';
 const db='11111111-1111-4111-8111-111111111111';
 const other='22222222-2222-4222-8222-222222222222';
 const deploymentId='33333333-3333-4333-8333-333333333333';
 const retriedId='44444444-4444-4444-8444-444444444444';
 const sha='a'.repeat(40);
-const migration=await readFile(new URL('../migrations/0001_marketplace.sql',import.meta.url),'utf8');
+const migrations=await readMigrations();
 const clone=value=>JSON.parse(JSON.stringify(value));
 function harness(options={}){
-  const requests=[],logs=[];
+  const requests=[],logs=[],query=d1Query();
   const project={
     name:'vendeplus',
     production_branch:'main',
@@ -34,8 +35,8 @@ function harness(options={}){
     if(url.includes('/d1/database?'))return response(options.existing===false?[]:[{uuid:db,name:databaseName}]);
     if(url.endsWith('/d1/database')&&init.method==='POST')return response({uuid:db,name:databaseName});
     if(url.endsWith('/query')){
-      if(init.body.includes('sqlite_master'))return response([{success:true,results:[{name:'marketplace_listings'},{name:'marketplace_sellers'}]}]);
-      return response([{success:!options.failedMigration}]);
+      const {sql,params}=JSON.parse(init.body);
+      return response(options.failedMigration?[{success:false}]:query(sql,params));
     }
     if(url.includes('/deployments?')){
       if(Number(new URL(url).searchParams.get('per_page'))>25)return response(null,400);
@@ -48,7 +49,7 @@ function harness(options={}){
     }
     throw Error('Unexpected request');
   };
-  const run=(extra={})=>connectPreviewDatabase({token:'unit-test-secret',ref:`refs/heads/${branchName}`,commit:sha,migration,fetchImpl,sleep:async()=>{},log:text=>logs.push(text),maxPolls:2,...extra});
+  const run=(extra={})=>connectPreviewDatabase({token:'unit-test-secret',ref:`refs/heads/${branchName}`,commit:sha,migrations:migrations.slice(0,1),fetchImpl,sleep:async()=>{},log:text=>logs.push(text),maxPolls:2,...extra});
   return {run,requests,logs,project,initial};
 }
 
@@ -125,5 +126,5 @@ test('aceita somente subdomínio HTTPS de prévia, nunca produção ou outro hos
 test('listagem de deployments usa a paginação padrão aceita pelo provedor',async()=>{const h=harness();await h.run();const request=h.requests.find(r=>r.url.includes('/deployments?'));assert.equal(new URL(request.url).searchParams.get('per_page'),null);assert.equal(new URL(request.url).searchParams.get('env'),'preview')});
 
 test('migração de contas habilita crypto apenas na prévia e mantém a configuração de produção',async()=>{
- const h=harness({bound:true});await h.run({migration:migration+'\nCREATE TABLE IF NOT EXISTS marketplace_accounts (id TEXT);'});const patch=h.requests.find(r=>r.method==='PATCH');assert.deepEqual(patch.body.deployment_configs.preview.compatibility_flags,['nodejs_compat']);assert.equal(patch.body.deployment_configs.preview.compatibility_date,'2025-04-08');assert.deepEqual(h.project.deployment_configs.production,h.initial.deployment_configs.production);
+ const h=harness({bound:true});await h.run({migrations});const patch=h.requests.find(r=>r.method==='PATCH');assert.deepEqual(patch.body.deployment_configs.preview.compatibility_flags,['nodejs_compat']);assert.equal(patch.body.deployment_configs.preview.compatibility_date,'2025-04-08');assert.deepEqual(h.project.deployment_configs.production,h.initial.deployment_configs.production);
 });

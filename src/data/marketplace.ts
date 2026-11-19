@@ -21,7 +21,7 @@ export type Listing = {
   neighborhood?:string;
   image?:string;
   fulfillment:string;
-  contactWhatsapp?:string;
+  canContact?:boolean;
   status:'PUBLICADO';
   createdAt:number;
 };

@@ -10,8 +10,8 @@ class MarketplaceSchemaTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(':memory:')
         self.db.row_factory = sqlite3.Row
-        for file in ['0001_marketplace.sql', '0002_accounts.sql', '0003_vendeplus_2.sql']:
-            self.db.executescript((ROOT / 'migrations' / file).read_text())
+        for file in sorted((ROOT / 'migrations').glob('*.sql')):
+            self.db.executescript(file.read_text())
         for identity, status in [('approved', 'approved'), ('pending', 'pending'), ('suspended', 'suspended')]:
             self.db.execute('INSERT INTO marketplace_sellers(id,display_name,status) VALUES(?,?,?)', (identity, 'Anunciante de teste', status))
 

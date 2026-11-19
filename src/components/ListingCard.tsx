@@ -9,6 +9,6 @@ export function ListingCard({listing}:{listing:Listing}){
    <div className="listing-image"><span className="listing-placeholder" aria-hidden="true"><Icon name="bag"/></span>{listing.image&&<img src={listing.image} alt={listing.title} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={e=>{e.currentTarget.hidden=true}}/>}<span className="condition-badge">{listing.condition}</span></div>
    <div className="listing-body"><span className="listing-category">{listing.category}</span><h3>{listing.title}</h3><strong className="price">{formatBRL(listing.priceCents)}</strong><span className="listing-location"><Icon name="pin"/>{listing.neighborhood||'Poranga e Jacarezinho'}</span><small>{listing.seller}</small><span className="listing-action">Ver detalhes<Icon name="arrow"/></span></div>
   </a>
-  {listing.contactWhatsapp&&<div className="listing-contact"><ContactLink listing={listing}/></div>}
+  {listing.canContact&&<div className="listing-contact"><ContactLink listing={listing}/></div>}
  </article>;
 }

@@ -1,3 +1,4 @@
+import {managedPhotoKey} from '../_shared/photo-cleanup.ts';
 import {createHash} from 'node:crypto';
 import {session,type Database} from '../_shared/account.ts';
 import {cleanPhoto} from '../_shared/image.ts';
@@ -5,10 +6,6 @@ import {CloudinaryUploadError,cloudinaryKey,cloudinaryReady,deleteCloudinary,upl
 type Bucket={put:(key:string,body:Uint8Array,metadata:{httpMetadata:{contentType:string}})=>Promise<unknown>;delete:(key:string)=>Promise<unknown>};
 type Env=CloudinaryEnv&{MARKETPLACE_DB?:Database;LISTING_IMAGES?:Bucket};
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
-function ownedKey(value:unknown,origin:string){
- if(typeof value!=='string')return null;
- try{const url=new URL(value);return url.origin===origin&&/^\/api\/media\/(?:c-)?[a-f0-9-]{36}\.(png|webp)$/.test(url.pathname)&&!url.search&&!url.hash?url.pathname.slice('/api/media/'.length):null}catch{return null}
-}
 export async function onRequest({request,env}:{request:Request;env:Env}){
  if(request.method==='GET'){
   const available=!!env.MARKETPLACE_DB&&(!!env.LISTING_IMAGES||cloudinaryReady(env));
@@ -34,13 +31,19 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
  const db=env.MARKETPLACE_DB,bucket=env.LISTING_IMAGES,useCloudinary=cloudinaryReady(env);
  let phase='session';
  const requestId=crypto.randomUUID();
+ const uuid=/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
+ const operation=request.headers.get('X-Photo-Request'),base=request.headers.get('X-Previous-Photo');
+ if((operation!==null&&!uuid.test(operation))||(base!==null&&base!=='original'&&!uuid.test(base)))return json({error:'Identificador de foto inválido.'},400);
+
  const remove=async(key:string)=>{if(cloudinaryKey(key))await deleteCloudinary(env,key);else if(bucket)await bucket.delete(key);else throw new Error('Armazenamento anterior indisponível.')};
  try{
   const user=await session(db,request);
   if(!user)return json({error:'Entre na sua conta para enviar a foto.'},401);
   phase='listing_lookup';
-  const listing=await db.prepare("SELECT id,image_url AS image FROM marketplace_listings WHERE id=? AND seller_id=? AND status NOT IN ('removed','rejected')").bind(id,user.id).first();
+  const listing=await db.prepare("SELECT id,image_url AS image,photo_request_id AS version FROM marketplace_listings WHERE id=? AND seller_id=? AND status NOT IN ('removed','rejected')").bind(id,user.id).first();
   if(!listing)return json({error:'Anúncio não encontrado.'},404);
+  if(operation&&operation===listing.version)return json({ok:true,image:listing.image});
+  if(base!==null&&base!==(listing.version||'original'))return json({error:'A foto foi alterada. Confira a imagem atual antes de trocar.',code:'LISTING_CHANGED'},409);
   phase='rate_limit';
   const now=Math.floor(Date.now()/1000),rateKey=createHash('sha256').update('upload:'+user.id).digest('hex');
   const quota=await db.prepare('INSERT INTO marketplace_rate_limits(key,attempts,expires_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN expires_at<=? THEN 1 ELSE attempts+1 END,expires_at=CASE WHEN expires_at<=? THEN excluded.expires_at ELSE expires_at END RETURNING attempts').bind(rateKey,now+900,now,now).first();
@@ -68,7 +71,7 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
   phase='database_update';
   let changed=false;
   try{
-   const result=await db.prepare("UPDATE marketplace_listings SET image_url=? WHERE id=? AND seller_id=? AND image_url IS ? AND status NOT IN ('removed','rejected')").bind(image,id,user.id,listing.image??null).run();
+   const result=await db.prepare("UPDATE marketplace_listings SET image_url=?,photo_request_id=? WHERE id=? AND seller_id=? AND image_url IS ? AND status NOT IN ('removed','rejected')").bind(image,operation||requestId,id,user.id,listing.image??null).run();
    changed=!!result.meta.changes;
   }catch{
    // Best-effort cleanup must never turn a failed DB confirmation into an
@@ -88,7 +91,7 @@ export async function onRequest({request,env}:{request:Request;env:Env}){
    return json({error:'O anúncio mudou. Atualize a página e tente novamente.',code:'LISTING_CHANGED'},409);
   }
   phase='prior_image_cleanup';
-  const previous=ownedKey(listing.image,origin);
+  const previous=managedPhotoKey(listing.image,origin);
   if(previous){
    const referenced=await db.prepare('SELECT id FROM marketplace_listings WHERE image_url=?').bind(listing.image).first();
    if(!referenced){try{await remove(previous)}catch{return json({ok:true,image,warning:'Foto salva. A limpeza da foto anterior está pendente.'})}}
