@@ -41,13 +41,13 @@ test('vitrine pública não contém avisos de demonstração nem anúncios inven
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await expect(page.locator('.app')).toHaveClass(/dark/);
   await expect(page.getByRole('button',{name:'Alternar tema'})).toHaveCount(0);
-  await expect(page.locator('body')).not.toContainText('Itacoatiara');
-  await expect(page.getByRole('heading',{name:'Anúncios do bairro'})).toBeVisible();
+  await expect(page.locator('body')).toContainText('Itacoatiara');
+  await expect(page.getByRole('heading',{name:'Explore os anúncios'})).toBeVisible();
   await expect(page.locator('.buyer-hero, .category-section, .filters')).toHaveCount(0);
   await expect(page.getByRole('searchbox',{name:'Buscar anúncios'})).toBeVisible();
   await expect(page.locator('.listing-card')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(/demonstração|simulação|fictício|Vendedor de demonstração/i);
-  await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Ainda não há anúncios disponíveis'})).toBeVisible();
   await expect(page.locator('.demo-banner')).toHaveCount(0);
   await expect(page.locator('header a.seller-cta')).toHaveAttribute('href','#publicar');
   await expect(page.locator('main').getByRole('link',{name:'Publicar meu anúncio'})).toHaveAttribute('href','#publicar');
@@ -84,7 +84,7 @@ test('catálogo usa a API e a busca direta',async({page})=>{
 
 test('descoberta marketplace oferece categorias compactas e apenas anúncios reais',async({page})=>{
   await catalog(page,items);await page.goto('/');
-  await expect(page.getByRole('heading',{name:/Tudo perto de você/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/Compre e venda/})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Explore por categoria'})).toBeVisible();
   await expect(page.locator('.market-chip')).toHaveCount(7);
   await expect(page.locator('.listing-card')).toHaveCount(2);
@@ -136,7 +136,7 @@ test('rascunho anterior persiste após recarregar e não vira oferta pública',a
  await page.reload();await expect(page.locator('.draft-card')).toContainText(oldDraft.title);
  await expect(page.getByRole('button',{name:'Salvar rascunho',exact:true})).toHaveCount(0);
  await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);
- await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Ainda não há anúncios disponíveis'})).toBeVisible();
 });
 
 test('rascunho anterior abre o formulário único com seus dados',async({page})=>{
@@ -321,7 +321,7 @@ test('tema escuro permanente e navegação mobile funciona',async({page},info)=>
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await expect(page.locator('.app')).toHaveClass(/dark/);
   await expect(page.getByRole('button',{name:'Alternar tema'})).toHaveCount(0);
-  await expect(page.locator('body')).not.toContainText('Itacoatiara');
+  await expect(page.locator('body')).toContainText('Itacoatiara');
   await page.screenshot({path:info.outputPath('tema-escuro.png'),fullPage:true});
   const mobile=page.getByRole('navigation',{name:'Atalhos para celular'});
   if(info.project.name.startsWith('mobile')){await expect(mobile).toBeVisible();await mobile.getByRole('link',{name:'Início e busca',exact:true}).click();await expect(page).toHaveURL(/#inicio$/)}else{await expect(mobile).toBeHidden()}
@@ -357,7 +357,7 @@ test('conta entra, publica anúncio e encerra sessão',async({page})=>{
 
 test('retorno ao catálogo atualiza ofertas retiradas no servidor',async({page})=>{
  await catalog(page);let available=true;await page.route('**/api/listings**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({listings:available?items:[]})}));
- await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(2);await page.goto('/#conta');await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();available=false;await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
+ await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(2);await page.goto('/#conta');await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();available=false;await page.goto('/#catalogo');await expect(page.locator('.listing-card')).toHaveCount(0);await expect(page.getByRole('heading',{name:'Ainda não há anúncios disponíveis'})).toBeVisible();
 });
 
 test('escolher foto não chama IA nem altera os campos',async({page})=>{
@@ -431,10 +431,10 @@ test('metadados do VENDE+ descrevem o projeto sem inventar ofertas',async({page}
   await catalog(page);await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang','pt-BR');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href','https://vendeplus.pages.dev/');
-  await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute('content','VENDE+');
+  await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute('content','Marketplace VENDE+ ITA');
   await expect(page.locator('meta[property="og:locale"]')).toHaveAttribute('content','pt_BR');
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content',/Poranga e Jacarezinho/);
-  await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content',/Itacoatiara/);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content',/Itacoatiara/);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content',/Itacoatiara/);
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content','#090a0d');
 });
 
@@ -470,7 +470,7 @@ test('area de vendedor nao carrega catalogo publico desnecessariamente',async({p
  await expect(page.getByRole('heading',{name:'Entre na sua conta.'})).toBeVisible();
  expect(requests).toBe(0);
  await page.goto('/#catalogo');
- await expect(page.getByRole('heading',{name:'Ainda não há anúncios no bairro'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Ainda não há anúncios disponíveis'})).toBeVisible();
  expect(requests).toBeGreaterThan(0);
 });
 

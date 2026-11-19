@@ -1,6 +1,14 @@
-# VENDE+ — Marketplace de Poranga e Jacarezinho
+# VENDE+ — Marketplace VENDE+ ITA
 
-Produto da APOCALYPTIC para aproximar compradores e vendedores de Poranga I, Poranga II e Jacarezinho, em Itacoatiara-AM. Os compradores exploram anúncios sem conta; os vendedores utilizam contas próprias e podem conversar com interessados diretamente pelo WhatsApp. **O VENDE+ não intermedeia pagamentos ou entregas.**
+Marca principal VENDE+; VENDE+ ITA identifica a operação inicial em Itacoatiara-AM. Slogan: **Compre e venda na sua cidade.** O catálogo e o cadastro ainda são limitados aos bairros Poranga I, Poranga II e Jacarezinho, até a expansão geográfica ser implementada no backend e nos formulários. Produto da APOCALYPTIC para aproximar compradores e vendedores locais. Os compradores exploram anúncios sem conta; os vendedores utilizam contas próprias e podem conversar com interessados diretamente pelo WhatsApp. **O VENDE+ não intermedeia pagamentos ou entregas.**
+
+## Identidade da marca
+
+- **Marca principal:** VENDE+.
+- **Identidade regional inicial:** VENDE+ ITA.
+- **Apresentação pública:** Marketplace VENDE+ — Itacoatiara.
+- **Slogan:** Compre e venda na sua cidade.
+- **Importante:** apresentação regional não significa cobertura operacional de todos os bairros; validar cadastros, filtros e API antes de ampliar áreas atendidas.
 
 ## Versão oficial e ambientes
 
