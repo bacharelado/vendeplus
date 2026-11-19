@@ -489,6 +489,28 @@ test('bairro e preço combinam com a busca, e limpar texto preserva o bairro',as
  await expect(page.locator('.listing-card')).toHaveCount(2);
 });
 
+test('apresentação APOCALYPTIC cabe em telas estreitas e mantém reprodução',async({page})=>{
+ await catalog(page);
+ for(const width of [320,393,768,900,1024,1280]){
+  await page.setViewportSize({width,height:768});
+  await page.goto('/');
+  const section=page.locator('#apocalyptic-vsl');
+  await expect(section).toBeAttached();
+  const measurements=await section.evaluate(el=>{
+   const box=el.getBoundingClientRect();
+   const player=el.querySelector('.vsl-player').getBoundingClientRect();
+   return {left:box.left,right:box.right,playerLeft:player.left,playerRight:player.right,viewport:document.documentElement.clientWidth};
+  });
+  expect(measurements.left).toBeGreaterThanOrEqual(-2);
+  expect(measurements.right).toBeLessThanOrEqual(measurements.viewport+2);
+  expect(measurements.playerLeft).toBeGreaterThanOrEqual(measurements.left-2);
+  expect(measurements.playerRight).toBeLessThanOrEqual(measurements.right+2);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+ }
+ await page.getByRole('button',{name:'Reproduzir apresentação da APOCALYPTIC'}).click();
+ await expect(page.locator('.vsl-player iframe')).toHaveAttribute('src',/^https:\\/\\/drive.google.com\\/file\\/d\\/.+\\/preview$/);
+});
+
 test('player externo só carrega quando solicitado',async({page})=>{
  await catalog(page);await page.route('https://drive.google.com/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>Player de teste</title>'}));
  await page.goto('/');
